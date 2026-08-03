@@ -14,6 +14,7 @@ from .editorial_board_scraper import EditorialBoardScraper
 from .rejected_journals_db import RejectedJournalDatabase
 from .accepted_journals_db import AcceptedJournalDatabase
 from .human_intervention import HumanInterventionQueue
+from .reference_lists import ReferenceListChecker
 
 
 class MTUJournalEvaluator:
@@ -179,6 +180,14 @@ class MTUJournalEvaluator:
             journal.publisher_name
         )
         verification_data["deep_search"] = web_search
+
+        # 4. Reference Lists: Beall's, Clarivate MJL/JCR, UGC CARE
+        ref_check = ReferenceListChecker.check_all(
+            journal.name,
+            journal.issn_print or journal.issn_online,
+            journal.publisher_name
+        )
+        verification_data["reference_lists"] = ref_check
 
         return verification_data
 

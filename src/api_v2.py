@@ -18,12 +18,14 @@ from src.database import EvaluationDatabase
 from src.auth import get_current_user, require_admin, authenticate_user, create_access_token
 from src.admin_api import admin_router
 from src.batch_import import BatchImporter
+from src.human_intervention import HumanInterventionQueue
 
 app = FastAPI(title="MTU Journal Evaluator")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 db = EvaluationDatabase()
 evaluator = MTUJournalEvaluator()
 aggregator = BlacklistAggregator()
+intervention_queue = HumanInterventionQueue()
 
 app.include_router(admin_router)
 
@@ -182,3 +184,23 @@ async def batch_import(
         "results": results,
         "stats": {"total": len(results), "accepted": accepted, "rejected": rejected, "conditional": conditional, "errors": errors},
     })
+
+
+@app.post("/admin/interventions/{eval_id}/request")
+async def request_manual_review(
+    eval_id: int,
+    journal_name: str = Form(...),
+    parameter_name: str = Form(...),
+    issue_description: str = Form(...),
+    severity: str = Form("medium"),
+    user: Optional[dict] = Depends(get_current_user),
+):
+    intervention_queue.create_intervention(
+        journal_name=journal_name,
+        parameter_name=parameter_name,
+        issue_description=issue_description,
+        severity=severity,
+        evaluation_id=eval_id,
+        auto_verification_failure_reason="Manual review requested from report page"
+    )
+    return RedirectResponse(url="/admin/interventions", status_code=303)
