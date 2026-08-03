@@ -19,13 +19,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Pre-seeded admin user. In production, replace with database-backed users.
-# Note: bcrypt truncates at 72 bytes; keep passwords within that limit.
 _USERS_DB = {
     "mtu_admin": {
         "username": "mtu_admin",
         "full_name": "MTU Administrator",
         "role": "admin",
-        "hashed_password": pwd_context.hash("MTU@2026!ChangeMe!"[:72]),
+        "hashed_password": None,
     }
 }
 
@@ -54,6 +53,13 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     user = get_user(username)
     if not user:
         return None
+
+    # Lazy hash so bcrypt runs at login time, not import time.
+    # Bcrypt has a 72-byte limit; truncate the secret password before hashing.
+    if user.get("hashed_password") is None:
+        secret = (password[:72] if len(password) > 72 else password)
+        _USERS_DB[username]["hashed_password"] = pwd_context.hash(secret)
+
     if not verify_password(password, user["hashed_password"]):
         return None
     return user
