@@ -28,7 +28,7 @@ class EditorialBoardScraper:
         'Accept': 'application/json'
     }
 
-    ORCID_PATTERN = re.compile(r'0000-\d{4}-\d{4}-[\dX]', re.IGNORECASE)
+    ORCID_PATTERN = re.compile(r'0000-\d{4}-\d{4}-[\dX]{4}', re.IGNORECASE)
     EMAIL_PATTERN = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
     H_INDEX_PATTERN = re.compile(r'h[- ]?index[:\\s]+(\\d+)', re.IGNORECASE)
 
@@ -66,10 +66,21 @@ class EditorialBoardScraper:
                 orcid_match = EditorialBoardScraper.ORCID_PATTERN.search(link.get('href', ''))
                 if orcid_match:
                     orcid_id = orcid_match.group(0)
-                    name = EditorialBoardScraper._clean_text(link.get_text())
-                    parent = link.find_parent(['td', 'li', 'div', 'p'])
+                    parent = link.find_parent(['td', 'li', 'div', 'p', 'article'])
+                    name = None
+                    if parent:
+                        heading = parent.find(['h1','h2','h3','h4','h5','h6','strong','b'])
+                        if heading:
+                            name = EditorialBoardScraper._clean_text(heading.get_text())
+                        if not name:
+                            text = parent.get_text(separator=' ', strip=True)
+                            first_line = text.split('\n')[0].strip()
+                            if first_line and len(first_line) > 2 and len(first_line) < 200:
+                                name = first_line[:200]
+                    if not name:
+                        name = EditorialBoardScraper._clean_text(link.get_text())
                     affiliation = EditorialBoardScraper._clean_text(parent.get_text()) if parent else None
-                    if name and len(name) > 2:
+                    if name and len(name) > 2 and 'orcid' not in name.lower():
                         editors.append({
                             "name": name,
                             "orcid": orcid_id,
