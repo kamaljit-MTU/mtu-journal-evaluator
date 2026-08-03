@@ -36,7 +36,7 @@ class Evaluation(Base):
     re_evaluate_by = Column(String(100))
 
 
-class Database:
+class EvaluationDatabase:
     def __init__(self):
         self._engine = None
         self._SessionLocal = None

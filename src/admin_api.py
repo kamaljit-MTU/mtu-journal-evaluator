@@ -106,8 +106,9 @@ async def admin_blacklists(user: Optional[dict] = Depends(require_admin)):
 
 
 # Monkey-patch EvaluationDatabase with _get_conn helper for admin override
-import sqlite3 as _sqlite3
+from src.database import EvaluationDatabase as _EvaluationDatabase
+
 def _get_conn(self):
-    return _sqlite3.connect(self.db_path)
+    return self._SessionLocal()
 
 EvaluationDatabase._get_conn = _get_conn
