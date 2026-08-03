@@ -3,6 +3,8 @@ Editorial Board Scraper
 Extracts editor names, ORCIDs, and affiliations from journal editorial board pages.
 Also searches ORCID.org for missing ORCID IDs and searches for h-index via web search.
 """
+import base64
+import os
 import re
 import json
 from typing import Dict, List, Optional, Any
@@ -31,6 +33,19 @@ class EditorialBoardScraper:
     ORCID_PATTERN = re.compile(r'0000-\d{4}-\d{4}-[\dX]{4}', re.IGNORECASE)
     EMAIL_PATTERN = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
     H_INDEX_PATTERN = re.compile(r'h[- ]?index[:\s]+(\d+)', re.IGNORECASE)
+
+    @staticmethod
+    def _orcid_auth_headers() -> Dict[str, str]:
+        client_id = os.getenv("ORCID_CLIENT_ID", "").strip()
+        client_secret = os.getenv("ORCID_CLIENT_SECRET", "").strip()
+        if client_id and client_secret:
+            token = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("utf-8")
+            return {
+                'User-Agent': 'MTU-Journal-Evaluator/1.0 (mailto:research@mtu.edu)',
+                'Accept': 'application/json',
+                'Authorization': f'Basic {token}'
+            }
+        return EditorialBoardScraper.ORCID_HEADERS
 
     @staticmethod
     def scrape(url: str, augment: bool = True) -> Dict[str, Any]:
@@ -187,7 +202,8 @@ class EditorialBoardScraper:
         try:
             query = quote(f'given-names:{given_name} AND family-name:{family_name}')
             url = f"https://pub.orcid.org/v3.0/search/?q={query}"
-            response = requests.get(url, headers=EditorialBoardScraper.ORCID_HEADERS, timeout=10)
+            headers = EditorialBoardScraper._orcid_auth_headers()
+            response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 results = data.get("result", [])
