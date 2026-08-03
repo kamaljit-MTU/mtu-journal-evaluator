@@ -24,5 +24,6 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Run with Gunicorn for production
-CMD ["gunicorn", "src.api_v2:app", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
+# Run with Gunicorn + Uvicorn workers for FastAPI/ASGI
+# Render provides $PORT; default to 8000 for local dev
+CMD ["sh", "-c", "gunicorn src.api_v2:app --bind 0.0.0.0:${PORT:-8000} --workers 2 --worker-class uvicorn.workers.UvicornWorker --timeout 120"]
