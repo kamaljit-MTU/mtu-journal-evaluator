@@ -5,78 +5,13 @@ Optional table for journals that passed evaluation with full details.
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from src.config import settings
-
-AcceptedBase = declarative_base()
+from sqlalchemy.orm import Session
+from src.database import EvaluationDatabase, AcceptedJournal
 
 
-class AcceptedJournal(AcceptedBase):
-    __tablename__ = "accepted_journals"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    journal_name = Column(String(500), nullable=False)
-    journal_url = Column(String(1000))
-    issn_print = Column(String(20))
-    issn_online = Column(String(20))
-    doi_prefix = Column(String(50))
-    publisher_name = Column(String(500))
-    publisher_url = Column(String(1000))
-    publisher_address = Column(String(1000))
-    editorial_board_url = Column(String(1000))
-    submission_portal_url = Column(String(1000))
-    ethics_policy_url = Column(String(1000))
-    open_access = Column(Boolean, default=False)
-    claimed_indexes = Column(Text)
-
-    # Evaluation results
-    total_score = Column(Integer)
-    max_score = Column(Integer)
-    percentage = Column(Float)
-    threshold = Column(Integer)
-    status = Column(String(50), nullable=False)
-
-    # Domain scores
-    authenticity_score = Column(Integer)
-    editorial_score = Column(Integer)
-    peer_review_score = Column(Integer)
-    website_score = Column(Integer)
-    metrics_score = Column(Integer)
-    ethics_score = Column(Integer)
-
-    # Verification results
-    issn_verified = Column(Boolean)
-    doi_verified = Column(Boolean)
-    publisher_verified = Column(Boolean)
-    orcid_verification_rate = Column(Float)
-    geographic_diversity_score = Column(Float)
-    blacklist_clean = Column(Boolean)
-
-    # Re-evaluation tracking
-    re_evaluate_by = Column(String(100))
-    last_re_evaluated = Column(DateTime)
-
-    # Metadata
-    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    evaluated_by = Column(String(200))
-    notes = Column(Text)
-    raw_data = Column(Text)
-
-
-class AcceptedJournalDatabase:
+class AcceptedJournalDatabase(EvaluationDatabase):
     def __init__(self):
-        db_url = settings.database_url
-        if db_url:
-            self._engine = create_engine(db_url, pool_pre_ping=True)
-        else:
-            self._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
-        self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)
-        AcceptedBase.metadata.create_all(bind=self._engine, checkfirst=True)
-
-    def get_session(self) -> Session:
-        return self._SessionLocal()
+        super().__init__()
 
     def add_accepted(self, result: Dict, evaluated_by: Optional[str] = None) -> int:
         session = self.get_session()

@@ -17,7 +17,6 @@ from .human_intervention import HumanInterventionQueue
 
 class MTUJournalEvaluator:
     def __init__(self):
-        self.scoring = ScoringEngine({})
         self.reporter = ReportGenerator()
         self.rejected_db = RejectedJournalDatabase()
         self.accepted_db = AcceptedJournalDatabase()

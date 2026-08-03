@@ -1,70 +1,20 @@
 """
 Human Intervention Queue Module
 For parameters that cannot be automatically determined or verified.
+
+Uses the shared SQLAlchemy Base/engine from src.database to avoid duplicate
+PostgreSQL type creation on startup.
 """
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from src.config import settings
-
-InterventionBase = declarative_base()
+from sqlalchemy.orm import Session
+from src.database import EvaluationDatabase, HumanIntervention
 
 
-class HumanIntervention(InterventionBase):
-    __tablename__ = "human_interventions"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-
-    # Journal context
-    journal_name = Column(String(500), nullable=False)
-    evaluation_id = Column(Integer)  # Link to main evaluation if exists
-    rejection_id = Column(Integer)   # Link to rejected journal if exists
-    acceptance_id = Column(Integer)  # Link to accepted journal if exists
-
-    # Intervention details
-    parameter_name = Column(String(100), nullable=False)
-    parameter_value = Column(Text)
-    issue_description = Column(Text, nullable=False)
-    severity = Column(String(50), default="medium")  # low, medium, high, critical
-    auto_verification_attempted = Column(Boolean, default=True)
-    auto_verification_failure_reason = Column(Text)
-
-    # Assignment and workflow
-    assigned_to = Column(String(200))
-    committee_member_email = Column(String(200))
-    status = Column(String(50), default="pending")  # pending, in_progress, resolved, escalated
-
-    # Resolution
-    resolution = Column(Text)
-    resolution_value = Column(Text)
-    resolved_by = Column(String(200))
-    resolved_at = Column(DateTime)
-
-    # Email forwarding
-    email_sent = Column(Boolean, default=False)
-    email_sent_at = Column(DateTime)
-    email_recipient = Column(String(200))
-
-    # Metadata
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class HumanInterventionQueue:
+class HumanInterventionQueue(EvaluationDatabase):
     def __init__(self):
-        db_url = settings.database_url
-        if db_url:
-            self._engine = create_engine(db_url, pool_pre_ping=True)
-        else:
-            self._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
-        self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)
-        InterventionBase.metadata.create_all(bind=self._engine, checkfirst=True)
-
-    def get_session(self) -> Session:
-        return self._SessionLocal()
+        super().__init__()
 
     def create_intervention(self, journal_name: str, parameter_name: str,
                            issue_description: str, severity: str = "medium",
@@ -84,7 +34,7 @@ class HumanInterventionQueue:
                 severity=severity,
                 auto_verification_attempted=True,
                 auto_verification_failure_reason=auto_verification_failure_reason,
-                status="pending"
+                status="pending",
             )
             session.add(intervention)
             session.commit()

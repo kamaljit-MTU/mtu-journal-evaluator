@@ -5,69 +5,13 @@ Dedicated table for journals that failed evaluation with full details.
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from src.config import settings
-
-RejectedBase = declarative_base()
+from sqlalchemy.orm import Session
+from src.database import EvaluationDatabase, RejectedJournal
 
 
-class RejectedJournal(RejectedBase):
-    __tablename__ = "rejected_journals"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    journal_name = Column(String(500), nullable=False)
-    journal_url = Column(String(1000))
-    issn_print = Column(String(20))
-    issn_online = Column(String(20))
-    publisher_name = Column(String(500))
-    publisher_url = Column(String(1000))
-    submission_email = Column(String(200))
-
-    # Rejection details
-    rejection_reason = Column(Text)
-    rejection_triggers = Column(Text)
-    total_score = Column(Integer)
-    max_score = Column(Integer)
-    percentage = Column(Float)
-
-    # Additional context
-    blacklist_matches = Column(Text)
-    red_flags = Column(Text)
-    deep_search_results = Column(Text)
-
-    # Workflow
-    is_human_review = Column(Boolean, default=False)
-    human_review_reason = Column(Text)
-    human_review_status = Column(String(50), default="pending")
-    human_review_notes = Column(Text)
-
-    # Committee review
-    committee_reviewed = Column(Boolean, default=False)
-    committee_decision = Column(String(100))
-    committee_notes = Column(Text)
-    committee_reviewed_by = Column(String(200))
-    committee_reviewed_at = Column(DateTime)
-
-    # Metadata
-    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    evaluated_by = Column(String(200))
-    raw_data = Column(Text)
-
-
-class RejectedJournalDatabase:
+class RejectedJournalDatabase(EvaluationDatabase):
     def __init__(self):
-        db_url = settings.database_url
-        if db_url:
-            self._engine = create_engine(db_url, pool_pre_ping=True)
-        else:
-            self._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
-        self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)
-        RejectedBase.metadata.create_all(bind=self._engine, checkfirst=True)
-
-    def get_session(self) -> Session:
-        return self._SessionLocal()
+        super().__init__()
 
     def add_rejected(self, result: Dict, evaluated_by: Optional[str] = None) -> int:
         session = self.get_session()
