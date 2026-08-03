@@ -125,10 +125,10 @@ class MTUJournalEvaluator:
         )
         verification_data["journal_history"] = journal_history
 
-        # 2. Scrape editorial board and verify ORCIDs + h-index
+        # 2. Scrape editorial board and augment with ORCID/h-index lookups
         editors = []
         if journal.editorial_board_url:
-            scraped = EditorialBoardScraper.scrape(journal.editorial_board_url)
+            scraped = EditorialBoardScraper.scrape(journal.editorial_board_url, augment=True)
             editors = scraped.get("editors", [])
             if scraped.get("success"):
                 verification_data["editorial_board_scrape"] = {
@@ -137,15 +137,30 @@ class MTUJournalEvaluator:
                     "with_orcid": scraped.get("with_orcid", 0),
                     "with_affiliation": scraped.get("with_affiliation", 0),
                     "countries": scraped.get("countries", []),
+                    "editors": editors[:100],
                 }
 
         if editors:
-            # Live ORCID verification
+            # Use augmented ORCIDs and h-indices from scraper
             orcid_verification = ORCIDEditorVerifier.verify_editorial_board(editors)
             verification_data["orcid_verification"] = orcid_verification
 
-            # h-index estimation from Google Scholar / Scopus / Web of Science via web search
-            h_index_results = HIndexEstimator.estimate_batch(editors)
+            # h-index estimation from augmented editor data
+            h_index_estimations = []
+            for editor in editors:
+                if editor.get("h_index") is not None:
+                    h_index_estimations.append({
+                        "name": editor.get("name"),
+                        "h_index_estimate": editor.get("h_index"),
+                        "h_index_source": editor.get("h_index_source"),
+                        "h_index_confidence": editor.get("h_index_confidence", "low"),
+                    })
+            h_index_results = {
+                "total": len(editors),
+                "estimated": len(h_index_estimations),
+                "not_found": len(editors) - len(h_index_estimations),
+                "estimations": h_index_estimations,
+            }
             verification_data["h_index_estimation"] = h_index_results
 
             # Geographic diversity from verified affiliations

@@ -162,6 +162,18 @@ async def logout():
     return resp
 
 
+@app.get("/accepted", response_class=HTMLResponse)
+async def public_accepted(request: Request):
+    items = db.get_accepted(limit=200)
+    return templates.TemplateResponse("admin/accepted.html", {"request": request, "items": items, "user": None})
+
+
+@app.get("/rejected", response_class=HTMLResponse)
+async def public_rejected(request: Request):
+    items = db.get_rejected(limit=200)
+    return templates.TemplateResponse("admin/rejected.html", {"request": request, "items": items, "user": None})
+
+
 @app.post("/batch")
 async def batch_import(
     file: UploadFile = File(...),

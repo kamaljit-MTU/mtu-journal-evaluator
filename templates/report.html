@@ -108,6 +108,21 @@
             {% if vd.geographic_diversity %}
             <p><strong>Geographic Diversity:</strong> {{ vd.geographic_diversity.diversity_rating | title }} — {{ vd.geographic_diversity.countries | length }} countries detected</p>
             {% endif %}
+            {% if vd.editorial_board_scrape and vd.editorial_board_scrape.editors %}
+            <h4 style="margin-top: 1em;">Editor Details</h4>
+            <table>
+                <tr><th>Name</th><th>ORCID</th><th>Affiliation</th><th>h-index</th><th>h-index Source</th></tr>
+                {% for editor in vd.editorial_board_scrape.editors %}
+                <tr>
+                    <td>{{ editor.name }}</td>
+                    <td>{% if editor.orcid %}<a href="https://orcid.org/{{ editor.orcid }}" target="_blank">{{ editor.orcid }}</a>{% else %}Not found{% endif %}</td>
+                    <td>{{ editor.affiliation or 'Not specified' }}</td>
+                    <td>{% if editor.h_index %}{{ editor.h_index }}{% else %}Not found{% endif %}</td>
+                    <td>{{ editor.h_index_source or 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
         </div>
         {% endif %}
 
