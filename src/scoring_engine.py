@@ -1,16 +1,21 @@
 """
-Scoring Engine - 150-point framework
+Scoring Engine - 150-point framework with enhanced verification
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .models import JournalInput, DomainScore, RejectionTriggerResult
+from .enhanced_verifiers import (
+    JournalHistoryVerifier, ORCIDEditorVerifier,
+    GeographicDiversityVerifier, DeepWebSearcher
+)
 
 
 class ScoringEngine:
     THRESHOLD = 120
     MAX_SCORE = 150
 
-    def __init__(self, journal: JournalInput):
+    def __init__(self, journal: JournalInput, verification_data: Optional[Dict] = None):
         self.journal = journal
+        self.verification_data = verification_data or {}
 
     def score(self, trigger_results: List[RejectionTriggerResult]) -> List[DomainScore]:
         # If any automatic rejection trigger fired, skip scoring
@@ -55,11 +60,38 @@ class ScoringEngine:
         sub.append({"criterion": "Publisher Legitimacy", "earned": 5 if pub_ok else 0, "max": 5,
                     "detail": f"Publisher: {self.journal.publisher_name}" if pub_ok else "Incomplete publisher info"})
 
-        # Journal History (4 pts)
-        # No numeric input here; default to 2 pts (2-3 years) if unknown, 4 if stated 3+
-        pts += 2  # neutral default
-        sub.append({"criterion": "Journal History", "earned": 2, "max": 4,
-                    "detail": "History not specified; default 2 pts (2-3 yrs assumed)"})
+        # Journal History (4 pts) - Enhanced with multi-source verification
+        history_pts = 2  # default
+        history_detail = "History not specified; default 2 pts (2-3 yrs assumed)"
+
+        # Check verification data from multiple sources
+        journal_history = self.verification_data.get("journal_history", {})
+        if journal_history:
+            sources_checked = journal_history.get("sources_checked", [])
+            confidence = journal_history.get("confidence", "low")
+
+            # Award points based on sources checked
+            if len(sources_checked) >= 3:
+                history_pts = 4
+                history_detail = f"History verified from {len(sources_checked)} sources: {', '.join(sources_checked)}"
+            elif len(sources_checked) == 2:
+                history_pts = 3
+                history_detail = f"History verified from {len(sources_checked)} sources: {', '.join(sources_checked)}"
+            elif len(sources_checked) == 1:
+                history_pts = 2
+                history_detail = f"History check from 1 source: {', '.join(sources_checked)}"
+            else:
+                history_pts = 1
+                history_detail = "History not verified from any source"
+
+            # Bonus for high confidence
+            if confidence == "high" and history_pts < 4:
+                history_pts = min(4, history_pts + 1)
+                history_detail += f" (confidence: {confidence})"
+
+        pts += history_pts
+        sub.append({"criterion": "Journal History", "earned": history_pts, "max": 4,
+                    "detail": history_detail})
 
         # Publisher Transparency (4 pts)
         trans = bool(self.journal.publisher_address)
@@ -76,9 +108,9 @@ class ScoringEngine:
         # Reputed Publisher (3 pts)
         # Auto-award if known reputable; otherwise 1 pt as unknown
         pub_bonus = 1
-        known_reputable = ["elsevier", "springer", "wiley", "ieee", "acm",
+        known_reputable = {"elsevier", "springer", "wiley", "ieee", "acm",
                            "oxford university press", "cambridge", "sage",
-                           "taylor & francis", "mdpi", "frontiers"]
+                           "taylor & francis", "mdpi", "frontiers"}
         if any(r in (self.journal.publisher_name or "").lower() for r in known_reputable):
             pub_bonus = 3
         pts += pub_bonus
@@ -98,20 +130,65 @@ class ScoringEngine:
         sub.append({"criterion": "Verified Affiliations (50% sample)", "earned": 4 if has_eb else 0, "max": 4,
                     "detail": "Editorial board URL provided" if has_eb else "No editorial board info"})
 
-        # Geographic Diversity (4 pts)
-        pts += 2  # neutral default
-        sub.append({"criterion": "Geographic/Institutional Diversity", "earned": 2, "max": 4,
-                    "detail": "Diversity not verifiable from input alone; 2 pts default"})
+        # Geographic Diversity (4 pts) - Enhanced with deep verification
+        geo_pts = 2  # neutral default
+        geo_detail = "Diversity not verifiable from input alone; 2 pts default"
+
+        geo_data = self.verification_data.get("geographic_diversity", {})
+        if geo_data:
+            diversity_score = geo_data.get("diversity_score", 0)
+            diversity_rating = geo_data.get("diversity_rating", "poor")
+            countries = geo_data.get("countries", [])
+
+            if diversity_rating == "excellent":
+                geo_pts = 4
+                geo_detail = f"Excellent diversity: {len(countries)} countries represented"
+            elif diversity_rating == "good":
+                geo_pts = 3
+                geo_detail = f"Good diversity: {len(countries)} countries represented"
+            elif diversity_rating == "fair":
+                geo_pts = 2
+                geo_detail = f"Fair diversity: {len(countries)} countries represented"
+            else:
+                geo_pts = 1
+                geo_detail = f"Poor diversity: {len(countries)} countries represented"
+
+            if geo_data.get("needs_human_review"):
+                geo_detail += " (flagged for human review)"
+
+        pts += geo_pts
+        sub.append({"criterion": "Geographic/Institutional Diversity", "earned": geo_pts, "max": 4,
+                    "detail": geo_detail})
 
         # EIC h-index (6 pts)
         pts += 2  # neutral default
         sub.append({"criterion": "Editor-in-Chief h-index", "earned": 2, "max": 6,
                     "detail": "EIC h-index not provided; 2 pts default"})
 
-        # ORCID Availability (3 pts)
-        pts += 1  # neutral default
-        sub.append({"criterion": "ORCID/ID Availability", "earned": 1, "max": 3,
-                    "detail": "ORCID data not available; 1 pt default"})
+        # ORCID Availability (3 pts) - Enhanced with ORCID.org verification
+        orcid_pts = 1  # neutral default
+        orcid_detail = "ORCID data not available; 1 pt default"
+
+        orcid_data = self.verification_data.get("orcid_verification", {})
+        if orcid_data:
+            total = orcid_data.get("total_editors", 0)
+            verified = orcid_data.get("verified", 0)
+            verification_rate = orcid_data.get("verification_rate", 0)
+
+            if total > 0:
+                if verification_rate >= 0.8:
+                    orcid_pts = 3
+                    orcid_detail = f"Excellent ORCID verification: {verified}/{total} editors verified ({verification_rate*100:.0f}%)"
+                elif verification_rate >= 0.5:
+                    orcid_pts = 2
+                    orcid_detail = f"Good ORCID verification: {verified}/{total} editors verified ({verification_rate*100:.0f}%)"
+                else:
+                    orcid_pts = 1
+                    orcid_detail = f"Poor ORCID verification: only {verified}/{total} editors verified ({verification_rate*100:.0f}%)"
+
+        pts += orcid_pts
+        sub.append({"criterion": "ORCID/ID Availability", "earned": orcid_pts, "max": 3,
+                    "detail": orcid_detail})
 
         # Special Issue Editors (3 pts)
         pts += 1
