@@ -89,6 +89,28 @@
         </div>
         {% endif %}
 
+        {% if result.raw_data.verification_data %}
+        <div class="section">
+            <h3>Editor Verification</h3>
+            {% set vd = result.raw_data.verification_data %}
+            {% if vd.editorial_board_scrape %}
+            <p><strong>Editorial Board Scrape:</strong> {{ vd.editorial_board_scrape.total_editors }} editors found, {{ vd.editorial_board_scrape.with_orcid }} with ORCID, {{ vd.editorial_board_scrape.with_affiliation }} with affiliation</p>
+            {% endif %}
+            {% if vd.orcid_verification %}
+            <p><strong>ORCID Verification:</strong> {{ vd.orcid_verification.verified }}/{{ vd.orcid_verification.total_editors }} verified ({{ (vd.orcid_verification.verification_rate * 100) | round | int }}%)</p>
+            {% if vd.orcid_verification.needs_human_review %}
+            <p class="fail"><strong>Human Review Required:</strong> {{ vd.orcid_verification.human_review_reason }}</p>
+            {% endif %}
+            {% endif %}
+            {% if vd.h_index_estimation %}
+            <p><strong>h-index Estimation:</strong> {{ vd.h_index_estimation.estimated }}/{{ vd.h_index_estimation.total }} editors estimated via web search</p>
+            {% endif %}
+            {% if vd.geographic_diversity %}
+            <p><strong>Geographic Diversity:</strong> {{ vd.geographic_diversity.diversity_rating | title }} — {{ vd.geographic_diversity.countries | length }} countries detected</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if crawl_data and not crawl_data.error %}
         <div class="section">
             <h3>Crawl Data</h3>
