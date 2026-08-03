@@ -49,7 +49,7 @@ class EvaluationDatabase:
         else:
             self._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
         self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)
-        Base.metadata.create_all(bind=self._engine)
+        Base.metadata.create_all(bind=self._engine, checkfirst=True)
 
     def get_session(self) -> Session:
         return self._SessionLocal()
