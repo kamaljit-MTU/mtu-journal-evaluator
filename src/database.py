@@ -175,11 +175,11 @@ class HumanIntervention(Base):
 
 
 class EvaluationDatabase:
+    _engine = None
+    _SessionLocal = None
     _initialized = False
 
     def __init__(self):
-        self._engine = None
-        self._SessionLocal = None
         self._init_db()
 
     def _init_db(self):
@@ -187,15 +187,17 @@ class EvaluationDatabase:
             return
         db_url = settings.database_url
         if db_url:
-            self._engine = create_engine(db_url, pool_pre_ping=True)
+            EvaluationDatabase._engine = create_engine(db_url, pool_pre_ping=True)
         else:
-            self._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
-        self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)
-        Base.metadata.create_all(bind=self._engine, checkfirst=True)
+            EvaluationDatabase._engine = create_engine(f"sqlite:///{settings.SQLITE_PATH}", connect_args={"check_same_thread": False})
+        EvaluationDatabase._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=EvaluationDatabase._engine)
+        Base.metadata.create_all(bind=EvaluationDatabase._engine, checkfirst=True)
         EvaluationDatabase._initialized = True
 
     def get_session(self) -> Session:
-        return self._SessionLocal()
+        if EvaluationDatabase._SessionLocal is None:
+            raise RuntimeError("Database not initialized")
+        return EvaluationDatabase._SessionLocal()
 
     def save_evaluation(self, result: Dict, evaluated_by: Optional[str] = None) -> int:
         session = self.get_session()

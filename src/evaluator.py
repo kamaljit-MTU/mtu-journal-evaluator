@@ -152,7 +152,7 @@ class MTUJournalEvaluator:
                 "publisher_url": journal.publisher_url,
                 "submission_email": None,  # Will be populated if email-only
                 "rejection_reason": result.summary,
-                "rejection_triggers": [{"name": t.name, "passed": t.passed, "reason": t.reason}
+                "rejection_triggers": [{"name": t.name, "passed": t.passed, "detail": t.detail}
                                        for t in result.rejection_triggers if not t.passed],
                 "total_score": result.total_score,
                 "max_score": result.max_score,
