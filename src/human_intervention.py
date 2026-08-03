@@ -21,7 +21,8 @@ class HumanInterventionQueue(EvaluationDatabase):
                            evaluation_id: Optional[int] = None,
                            rejection_id: Optional[int] = None,
                            acceptance_id: Optional[int] = None,
-                           auto_verification_failure_reason: Optional[str] = None) -> int:
+                           auto_verification_failure_reason: Optional[str] = None,
+                           committee_member_email: Optional[str] = None) -> int:
         session = self.get_session()
         try:
             intervention = HumanIntervention(
@@ -35,6 +36,7 @@ class HumanInterventionQueue(EvaluationDatabase):
                 auto_verification_attempted=True,
                 auto_verification_failure_reason=auto_verification_failure_reason,
                 status="pending",
+                committee_member_email=committee_member_email,
             )
             session.add(intervention)
             session.commit()
