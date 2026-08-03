@@ -54,7 +54,7 @@ async def evaluate_journal(
     metric_claims: Optional[str] = Form(None),
     rapid_publication_claim: bool = Form(False),
     lock_pdfs: bool = Form(False),
-    crawl: bool = Form(False),
+    save_accepted: bool = Form(True),
     user: Optional[dict] = Depends(get_current_user),
 ):
     journal = JournalInput(
@@ -92,8 +92,8 @@ async def evaluate_journal(
                 [k for k, v in checks["predatory_metrics_present"].items() if v]
             )
 
-    report_text = evaluator.evaluate_and_report(journal, fmt="text")
-    report_json = evaluator.evaluate_and_report(journal, fmt="json")
+    report_text = evaluator.evaluate_and_report(journal, fmt="text", save_accepted=save_accepted)
+    report_json = evaluator.evaluate_and_report(journal, fmt="json", save_accepted=False)
     result = json.loads(report_json)
 
     verifier_results = {

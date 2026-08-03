@@ -15,12 +15,14 @@ from src.database import EvaluationDatabase
 from src.auth import require_admin, get_current_user
 from src.blacklist import BlacklistChecker
 from src.blacklist_feeds import BlacklistAggregator
+from src.human_intervention import HumanInterventionQueue
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 db = EvaluationDatabase()
 evaluator = MTUJournalEvaluator()
 aggregator = BlacklistAggregator()
+intervention_queue = HumanInterventionQueue()
 
 
 @admin_router.get("/admin", response_class=HTMLResponse)
@@ -103,6 +105,90 @@ async def admin_blacklists(user: Optional[dict] = Depends(require_admin)):
             "sample": list(entries)[:10],
         }
     return {"feeds": summary}
+
+
+@admin_router.get("/admin/interventions", response_class=HTMLResponse)
+async def admin_interventions(request: Request, user: Optional[dict] = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
+
+    status_filter = request.query_params.get("status", "pending")
+    if status_filter == "pending":
+        interventions = intervention_queue.get_pending_interventions(limit=100)
+    elif status_filter == "all":
+        interventions = intervention_queue.get_pending_interventions(limit=500)
+    else:
+        interventions = intervention_queue.get_pending_interventions(limit=100)
+
+    return templates.TemplateResponse("admin/interventions.html", {
+        "request": request,
+        "user": user,
+        "interventions": interventions,
+        "filter": status_filter,
+    })
+
+
+@admin_router.post("/admin/interventions/{intervention_id}/assign")
+async def assign_intervention(
+    intervention_id: int,
+    committee_email: str = Form(...),
+    assigned_to: str = Form(...),
+    user: Optional[dict] = Depends(require_admin),
+):
+    intervention_queue.assign_to_committee(intervention_id, committee_email, assigned_to)
+    return RedirectResponse(url="/admin/interventions", status_code=303)
+
+
+@admin_router.post("/admin/interventions/{intervention_id}/resolve")
+async def resolve_intervention(
+    intervention_id: int,
+    resolution: str = Form(...),
+    resolution_value: str = Form(""),
+    user: Optional[dict] = Depends(require_admin),
+):
+    intervention_queue.resolve_intervention(intervention_id, resolution, resolution_value, user.get("username", "admin"))
+    return RedirectResponse(url="/admin/interventions", status_code=303)
+
+
+@admin_router.post("/admin/interventions/{intervention_id}/escalate")
+async def escalate_intervention(
+    intervention_id: int,
+    user: Optional[dict] = Depends(require_admin),
+):
+    intervention_queue.escalate_intervention(intervention_id)
+    return RedirectResponse(url="/admin/interventions", status_code=303)
+
+
+@admin_router.get("/admin/rejected", response_class=HTMLResponse)
+async def admin_rejected(request: Request, user: Optional[dict] = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
+
+    evaluations = db.list_evaluations(limit=200, status="REJECTED")
+    return templates.TemplateResponse("admin/rejected.html", {
+        "request": request,
+        "user": user,
+        "evaluations": evaluations,
+    })
+
+
+@admin_router.get("/admin/accepted", response_class=HTMLResponse)
+async def admin_accepted(request: Request, user: Optional[dict] = Depends(get_current_user)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
+
+    evaluations = db.list_evaluations(limit=200, status="ACCEPTED")
+    return templates.TemplateResponse("admin/accepted.html", {
+        "request": request,
+        "user": user,
+        "evaluations": evaluations,
+    })
 
 
 # Monkey-patch EvaluationDatabase with _get_conn helper for admin override

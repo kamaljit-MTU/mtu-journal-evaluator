@@ -22,7 +22,7 @@ class MTUJournalEvaluator:
         self.accepted_db = AcceptedJournalDatabase()
         self.intervention_queue = HumanInterventionQueue()
 
-    def evaluate(self, journal: JournalInput) -> EvaluationResult:
+    def evaluate(self, journal: JournalInput, save_accepted: bool = True) -> EvaluationResult:
         # Phase 0: Enhanced Verification
         verification_data = self._run_enhanced_verifications(journal)
 
@@ -206,8 +206,8 @@ class MTUJournalEvaluator:
             }
             self.accepted_db.add_accepted(accepted_data)
 
-    def evaluate_and_report(self, journal: JournalInput, fmt: str = "text") -> str:
-        result = self.evaluate(journal)
+    def evaluate_and_report(self, journal: JournalInput, fmt: str = "text", save_accepted: bool = True) -> str:
+        result = self.evaluate(journal, save_accepted=save_accepted)
         if fmt == "json":
             return self.reporter.generate_json_report(result)
         return self.reporter.generate_text_report(result)

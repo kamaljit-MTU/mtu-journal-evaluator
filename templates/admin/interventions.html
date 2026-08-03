@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Human Interventions - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1a5276; }
+        .nav { margin-bottom: 1em; }
+        .nav a { margin-right: 1em; }
+        .filters { margin: 1em 0; }
+        .filters a { margin-right: 0.5em; padding: 0.3em 0.7em; border-radius: 4px; background: #eef2f7; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { padding: 0.6em; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        .severity-high { color: #c0392b; font-weight: bold; }
+        .severity-medium { color: #d68910; }
+        .severity-low { color: #1e8449; }
+        .btn { padding: 0.4em 0.8em; border-radius: 4px; text-decoration: none; font-size: 0.9em; margin-right: 0.3em; }
+        .btn-primary { background: #1a5276; color: white; }
+        .btn-success { background: #1e8449; color: white; }
+        .btn-warning { background: #d68910; color: white; }
+        .btn-danger { background: #c0392b; color: white; }
+        .detail-box { background: #f8f9fa; padding: 1em; border-radius: 4px; margin-top: 0.5em; }
+        .status-badge { padding: 0.2em 0.6em; border-radius: 4px; font-size: 0.85em; }
+        .status-pending { background: #f39c12; color: white; }
+        .status-in_progress { background: #3498db; color: white; }
+        .status-resolved { background: #1e8449; color: white; }
+        .status-escalated { background: #c0392b; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Evaluator</a>
+            <a href="/admin">Dashboard</a>
+            <a href="/admin/interventions">Interventions</a>
+            <a href="/admin/rejected">Rejected Journals</a>
+            <a href="/admin/accepted">Accepted Journals</a>
+            <a href="/logout">Logout ({{ user.username }})</a>
+        </div>
+
+        <h1>Human Interventions</h1>
+        <p>Parameters that could not be automatically verified and require committee review.</p>
+
+        <div class="filters">
+            <strong>Filter:</strong>
+            <a href="/admin/interventions?status=pending">Pending</a>
+            <a href="/admin/interventions?status=in_progress">In Progress</a>
+            <a href="/admin/interventions?status=escalated">Escalated</a>
+            <a href="/admin/interventions?status=all">All</a>
+        </div>
+
+        {% if interventions %}
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Journal</th>
+                <th>Parameter</th>
+                <th>Issue</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Assigned To</th>
+                <th>Actions</th>
+            </tr>
+            {% for i in interventions %}
+            <tr>
+                <td>#{{ i.id }}</td>
+                <td>{{ i.journal_name }}</td>
+                <td>{{ i.parameter_name }}</td>
+                <td>
+                    <strong>{{ i.issue_description }}</strong>
+                    {% if i.auto_verification_failure_reason %}
+                    <div class="detail-box">{{ i.auto_verification_failure_reason }}</div>
+                    {% endif %}
+                </td>
+                <td class="severity-{{ i.severity }}">{{ i.severity }}</td>
+                <td>
+                    <span class="status-badge status-{{ i.status }}">{{ i.status }}</span>
+                </td>
+                <td>
+                    {% if i.assigned_to %}
+                        {{ i.assigned_to }}<br>
+                        <small>{{ i.committee_member_email }}</small>
+                    {% else %}
+                        <em>Unassigned</em>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if i.status == 'pending' %}
+                    <form method="POST" action="/admin/interventions/{{ i.id }}/assign" style="display:inline;">
+                        <input type="email" name="committee_email" placeholder="Committee email" required size="20">
+                        <input type="text" name="assigned_to" placeholder="Member name" required size="15">
+                        <button type="submit" class="btn btn-primary">Assign</button>
+                    </form>
+                    {% endif %}
+                    {% if i.status in ('pending', 'in_progress') %}
+                    <form method="POST" action="/admin/interventions/{{ i.id }}/resolve" style="display:inline;">
+                        <input type="text" name="resolution" placeholder="Resolution" required size="20">
+                        <input type="text" name="resolution_value" placeholder="Value" size="10">
+                        <button type="submit" class="btn btn-success">Resolve</button>
+                    </form>
+                    <form method="POST" action="/admin/interventions/{{ i.id }}/escalate" style="display:inline;" onsubmit="return confirm('Escalate this intervention?')">
+                        <button type="submit" class="btn btn-warning">Escalate</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No interventions found.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

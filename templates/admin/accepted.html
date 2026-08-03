@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Accepted Journals - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1e8449; }
+        .nav { margin-bottom: 1em; }
+        .nav a { margin-right: 1em; }
+        .btn { padding: 0.4em 0.8em; border-radius: 4px; text-decoration: none; font-size: 0.9em; margin-right: 0.3em; }
+        .btn-primary { background: #1a5276; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { padding: 0.6em; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        .accepted { color: #1e8449; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Evaluator</a>
+            <a href="/admin">Dashboard</a>
+            <a href="/admin/interventions">Interventions</a>
+            <a href="/admin/rejected">Rejected Journals</a>
+            <a href="/admin/accepted">Accepted Journals</a>
+            <a href="/logout">Logout ({{ user.username }})</a>
+        </div>
+
+        <h1>Accepted Journals</h1>
+        <p>Journals that passed evaluation and were automatically added to the accepted database.</p>
+
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Journal</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+            {% for e in evaluations %}
+            <tr>
+                <td>#{{ e.id }}</td>
+                <td><a href="/admin/evaluations/{{ e.id }}">{{ e.journal_name }}</a></td>
+                <td class="accepted">{{ e.status }}</td>
+                <td class="accepted">{{ e.total_score }}/{{ e.max_score }}</td>
+                <td>{{ e.evaluated_at[:10] }}</td>
+                <td>
+                    <a href="/admin/evaluations/{{ e.id }}" class="btn btn-primary">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not evaluations %}
+            <tr><td colspan="6">No accepted evaluations found.</td></tr>
+            {% endif %}
+        </table>
+    </div>
+</body>
+</html>
