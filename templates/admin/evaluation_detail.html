@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Evaluation Detail - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .accepted { color: #1e8449; } .rejected { color: #c0392b; } .conditional { color: #d68910; }
+        pre { background: #f8f9fa; padding: 1em; overflow-x: auto; border-radius: 4px; }
+        .section { margin: 1.5em 0; }
+        .domain { background: #f8f9fa; padding: 1em; margin: 0.5em 0; border-radius: 4px; border-left: 4px solid #1a5276; }
+        .nav { margin-bottom: 1em; }
+        .nav a { margin-right: 1em; }
+        .override-form { background: #fff3cd; padding: 1em; border-radius: 4px; margin: 1em 0; }
+        select, input, textarea { padding: 0.4em; margin: 0.3em 0; }
+        button { padding: 0.5em 1em; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #1a5276; color: white; }
+        .btn-danger { background: #c0392b; color: white; }
+        .btn-warning { background: #d68910; color: white; }
+        .btn-success { background: #1e8449; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/admin">Dashboard</a>
+            <a href="/">Evaluator</a>
+            <a href="/logout">Logout ({{ user.username }})</a>
+        </div>
+
+        <h1>Evaluation #{{ item.id }}: {{ item.journal_name }}</h1>
+        <p><strong>URL:</strong> <a href="{{ item.journal_url }}">{{ item.journal_url }}</a></p>
+        <p><strong>Status:</strong> <span class="{{ item.status.lower() }}">{{ item.status }}</span></p>
+        <p><strong>Score:</strong> {{ item.total_score }}/{{ item.max_score }} ({{ item.percentage }}%)</p>
+        <p><strong>Threshold:</strong> {{ item.threshold }}/{{ item.max_score }}</p>
+        <p><strong>Evaluated:</strong> {{ item.evaluated_at }}</p>
+        <p><strong>Appeal Status:</strong> {{ item.appeal_status or 'none' }}</p>
+        {% if item.appeal_notes %}
+        <p><strong>Appeal Notes:</strong> {{ item.appeal_notes }}</p>
+        {% endif %}
+        {% if item.re_evaluate_by %}
+        <p><strong>Re-evaluate by:</strong> {{ item.re_evaluate_by }}</p>
+        {% endif %}
+
+        <div class="section">
+            <h3>Rejection Triggers</h3>
+            {% for trigger in item.rejection_triggers %}
+            <div class="trigger">
+                <span class="{{ 'pass' if trigger.passed else 'fail' }}">
+                    [{{ 'PASS' if trigger.passed else 'FAIL' }}]
+                </span>
+                {{ trigger.name }}: {{ trigger.detail }}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <h3>Domain Scores</h3>
+            {% for domain in item.domain_scores %}
+            <div class="domain">
+                <strong>{{ domain.domain }}</strong>:
+                {{ domain.earned_points }}/{{ domain.max_points }}
+                ({{ "%.0f"|format(domain.earned_points / domain.max_points * 100) }}%)
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <h3>Summary</h3>
+            <p>{{ item.summary }}</p>
+        </div>
+
+        <div class="override-form">
+            <h3>Admin Override</h3>
+            <form method="post" action="/admin/evaluations/{{ item.id }}/override">
+                <label>New Status:</label>
+                <select name="new_status">
+                    <option value="ACCEPTED">ACCEPTED</option>
+                    <option value="REJECTED">REJECTED</option>
+                    <option value="CONDITIONAL">CONDITIONAL</option>
+                </select><br>
+                <label>Notes:</label><br>
+                <textarea name="notes" rows="3" cols="60"></textarea><br>
+                <button type="submit" class="btn-danger">Override Decision</button>
+            </form>
+        </div>
+
+        <div class="override-form">
+            <h3>Schedule Re-evaluation</h3>
+            <form method="post" action="/admin/evaluations/{{ item.id }}/schedule">
+                <label>Re-evaluate by (date):</label>
+                <input type="date" name="re_evaluate_by" required><br>
+                <button type="submit" class="btn-success">Schedule</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h3>Full Report</h3>
+            <pre>{{ item.summary }}</pre>
+        </div>
+    </div>
+</body>
+</html>

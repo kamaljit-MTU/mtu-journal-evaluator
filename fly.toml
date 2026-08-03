@@ -1,0 +1,44 @@
+# Fly.io Deployment Configuration
+# Free tier includes: 3 shared VMs, 256 MB RAM each, PostgreSQL database
+
+app = "mtu-journal-evaluator"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DEBUG = "false"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 25
+    hard_limit = 50
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+# Fly.io PostgreSQL
+[[services.postgres]]
+  name = "mtu-journal-db"
+  plan = "free"

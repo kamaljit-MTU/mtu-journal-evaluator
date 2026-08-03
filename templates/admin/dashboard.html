@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1a5276; }
+        .stats { display: flex; gap: 1em; margin: 1em 0; }
+        .stat-box { background: #f8f9fa; padding: 1em; border-radius: 4px; border-left: 4px solid #1a5276; flex: 1; }
+        .stat-box.accepted { border-color: #1e8449; }
+        .stat-box.rejected { border-color: #c0392b; }
+        .stat-box.conditional { border-color: #d68910; }
+        .stat-box.pending { border-color: #8e44ad; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { padding: 0.6em; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        .accepted { color: #1e8449; } .rejected { color: #c0392b; } .conditional { color: #d68910; }
+        .btn { padding: 0.4em 0.8em; border-radius: 4px; text-decoration: none; font-size: 0.9em; }
+        .btn-primary { background: #1a5276; color: white; }
+        .btn-danger { background: #c0392b; color: white; }
+        .btn-warning { background: #d68910; color: white; }
+        .filters { margin: 1em 0; }
+        .filters a { margin-right: 0.5em; }
+        .nav { margin-bottom: 1em; }
+        .nav a { margin-right: 1em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">Evaluator</a>
+            <a href="/admin">Dashboard</a>
+            <a href="/logout">Logout ({{ user.username }})</a>
+        </div>
+        <h1>Admin Dashboard</h1>
+
+        <div class="stats">
+            <div class="stat-box"><strong>Total</strong><br>{{ stats.total }}</div>
+            <div class="stat-box accepted"><strong>Accepted</strong><br>{{ stats.accepted }}</div>
+            <div class="stat-box rejected"><strong>Rejected</strong><br>{{ stats.rejected }}</div>
+            <div class="stat-box conditional"><strong>Conditional</strong><br>{{ stats.conditional }}</div>
+            <div class="stat-box pending"><strong>Pending Appeals</strong><br>{{ stats.pending_appeal }}</div>
+        </div>
+
+        <div class="filters">
+            <strong>Filter:</strong>
+            <a href="/admin">All</a>
+            <a href="/admin?status=ACCEPTED">Accepted</a>
+            <a href="/admin?status=REJECTED">Rejected</a>
+            <a href="/admin?status=CONDITIONAL">Conditional</a>
+        </div>
+
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Journal</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+            {% for e in evaluations %}
+            <tr>
+                <td>#{{ e.id }}</td>
+                <td><a href="/admin/evaluations/{{ e.id }}">{{ e.journal_name }}</a></td>
+                <td class="{{ e.status.lower() }}">{{ e.status }}</td>
+                <td>{{ e.total_score }}/{{ e.max_score }}</td>
+                <td>{{ e.evaluated_at[:10] }}</td>
+                <td>
+                    <a href="/admin/evaluations/{{ e.id }}" class="btn btn-primary">View</a>
+                    {% if e.appeal_status == 'pending' %}
+                    <a href="/admin/evaluations/{{ e.id }}" class="btn btn-warning">Appeal</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>

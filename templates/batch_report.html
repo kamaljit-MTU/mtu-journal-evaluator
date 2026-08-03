@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Batch Import Report - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1a5276; }
+        .stats { display: flex; gap: 1em; margin: 1em 0; }
+        .stat-box { background: #f8f9fa; padding: 1em; border-radius: 4px; border-left: 4px solid #1a5276; flex: 1; }
+        .stat-box.accepted { border-color: #1e8449; }
+        .stat-box.rejected { border-color: #c0392b; }
+        .stat-box.conditional { border-color: #d68910; }
+        .stat-box.errors { border-color: #e74c3c; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { padding: 0.6em; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        .accepted { color: #1e8449; } .rejected { color: #c0392b; } .conditional { color: #d68910; }
+        a { color: #1a5276; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Batch Import Report</h1>
+        <div class="stats">
+            <div class="stat-box"><strong>Total</strong><br>{{ stats.total }}</div>
+            <div class="stat-box accepted"><strong>Accepted</strong><br>{{ stats.accepted }}</div>
+            <div class="stat-box rejected"><strong>Rejected</strong><br>{{ stats.rejected }}</div>
+            <div class="stat-box conditional"><strong>Conditional</strong><br>{{ stats.conditional }}</div>
+            <div class="stat-box errors"><strong>Errors</strong><br>{{ stats.errors }}</div>
+        </div>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Journal</th>
+                <th>Status</th>
+                <th>Score</th>
+            </tr>
+            {% for r in results %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ r.journal_name }}</td>
+                <td class="{{ r.status.lower() if r.status != 'ERROR' else 'rejected' }}">
+                    {{ r.status }}
+                    {% if r.errors %}
+                    <br><small>{{ r.errors[0] }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if r.total_score is defined %}
+                    {{ r.total_score }}/{{ r.max_score }}
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <p><a href="/admin">Back to Dashboard</a></p>
+    </div>
+</body>
+</html>

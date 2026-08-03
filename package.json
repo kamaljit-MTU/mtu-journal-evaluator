@@ -1,0 +1,23 @@
+{
+  "name": "mtu-journal-evaluator",
+  "version": "1.2.0",
+  "description": "Automated journal evaluation system for Manipur Technical University (MTU)",
+  "author": "MTU IQAC",
+  "license": "MIT",
+  "engines": {
+    "python": ">=3.9"
+  },
+  "scripts": {
+    "start": "gunicorn src.api_v2:app --bind 0.0.0.0:8000 --workers 4 --timeout 120",
+    "dev": "python run.py --web",
+    "demo": "python run.py --demo",
+    "batch": "python run.py --batch",
+    "re-evaluate": "python run.py --re-evaluate",
+    "crawl": "python run.py --crawl"
+  },
+  "keywords": ["journal", "evaluation", "ugc", "academic", "research", "predatory"],
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}

@@ -1,0 +1,56 @@
+# Render.com Deployment Configuration
+# Deploy this as a Blueprint or use these settings in the Render dashboard
+# Free tier includes: 512 MB RAM, 100 GB bandwidth, PostgreSQL database
+
+services:
+  - type: web
+    name: mtu-journal-evaluator
+    runtime: docker
+    plan: free
+    branch: main
+    rootDir: .
+    buildCommand: docker build -t mtu-journal-evaluator .
+    startCommand: gunicorn src.api_v2:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mtu-journal-db
+          property: connectionString
+      - key: DEBUG
+        value: "false"
+
+  - type: pyserver
+    name: mtu-journal-scheduler
+    runtime: python
+    plan: free
+    branch: main
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: python src/re_evaluate.py --cron
+    schedule: "0 0 1 1,4,7,10 *"  # Quarterly: Jan 1, Apr 1, Jul 1, Oct 1
+    envVars:
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: mtu-journal-evaluator
+          envVarName: SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mtu-journal-db
+          property: connectionString
+      - key: ADMIN_PASSWORD
+        fromService:
+          type: web
+          name: mtu-journal-evaluator
+          envVarName: ADMIN_PASSWORD
+
+databases:
+  - name: mtu-journal-db
+    plan: free
+    databaseName: mtu_journal_evaluator
+    user: mtu_admin

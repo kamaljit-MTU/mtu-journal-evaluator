@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Evaluation Result - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .accepted { color: #1e8449; } .rejected { color: #c0392b; } .conditional { color: #d68910; }
+        .pass { color: #1e8449; } .fail { color: #c0392b; }
+        pre { background: #f8f9fa; padding: 1em; overflow-x: auto; border-radius: 4px; }
+        .section { margin: 1.5em 0; }
+        .domain { background: #f8f9fa; padding: 1em; margin: 0.5em 0; border-radius: 4px; border-left: 4px solid #1a5276; }
+        .trigger { padding: 0.4em 0; border-bottom: 1px solid #eee; }
+        .bar { font-family: monospace; color: #1a5276; }
+        a { color: #1a5276; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Evaluation Result</h1>
+        <p><strong>Journal:</strong> {{ result.journal_name }}</p>
+        <p><strong>URL:</strong> <a href="{{ result.journal_url }}">{{ result.journal_url }}</a></p>
+        <p><strong>Evaluation ID:</strong> #{{ eval_id }}</p>
+
+        <div class="section">
+            <h2>Status: <span class="{{ result.status.lower() }}">{{ result.status }}</span></h2>
+            <p>Score: <strong>{{ result.total_score }}/{{ result.max_score }} ({{ result.percentage }}%)</strong></p>
+            <p>Threshold: {{ result.threshold }}/{{ result.max_score }}</p>
+        </div>
+
+        {% if result.rejection_triggers %}
+        <div class="section">
+            <h3>Automatic Rejection Trigger Check</h3>
+            {% for trigger in result.rejection_triggers %}
+            <div class="trigger">
+                <span class="{{ 'pass' if trigger.passed else 'fail' }}">
+                    [{{ 'PASS' if trigger.passed else 'FAIL' }}]
+                </span>
+                {{ trigger.name }}
+                <br><small>{{ trigger.detail }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if result.domain_scores %}
+        <div class="section">
+            <h3>Domain Scores</h3>
+            {% for domain in result.domain_scores %}
+            <div class="domain">
+                <strong>{{ domain.domain }}</strong><br>
+                <span class="bar">{{ domain.earned_points }}/{{ domain.max_points }} ({{ "%.0f"|format(domain.earned_points / domain.max_points * 100) }}%)</span>
+                <ul>
+                {% for sc in domain.sub_criteria %}
+                    <li>{{ sc.criterion }}: {{ sc.earned }}/{{ sc.max }} — {{ sc.detail }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if verifier_results %}
+        <div class="section">
+            <h3>Live Verification Results</h3>
+            {% if verifier_results.issn %}
+            <p><strong>ISSN:</strong> {{ verifier_results.issn.status }} (format: {{ verifier_results.issn.format_valid }}, check digit: {{ verifier_results.issn.check_digit_valid }})</p>
+            {% endif %}
+            {% if verifier_results.doi %}
+            <p><strong>DOI:</strong> {{ verifier_results.doi.status }} (format: {{ verifier_results.doi.format_valid }})</p>
+            {% endif %}
+            {% if verifier_results.publisher %}
+            <p><strong>Publisher:</strong> {{ verifier_results.publisher.status }} (reputable: {{ verifier_results.publisher.reputable }})</p>
+            {% endif %}
+            {% if verifier_results.editorial_board %}
+            <p><strong>Editorial Board:</strong> {{ verifier_results.editorial_board.status }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if blacklist %}
+        <div class="section">
+            <h3>Blacklist Check</h3>
+            <p><strong>Flagged:</strong> <span class="{{ 'fail' if blacklist.blacklisted else 'pass' }}">{{ blacklist.blacklisted }}</span></p>
+            {% if blacklist.issues %}
+            <ul>{% for issue in blacklist.issues %}<li>{{ issue }}</li>{% endfor %}</ul>
+            {% endif %}
+            <p><small>{{ blacklist.note }}</small></p>
+        </div>
+        {% endif %}
+
+        {% if crawl_data and not crawl_data.error %}
+        <div class="section">
+            <h3>Crawl Data</h3>
+            <p>URL: {{ crawl_data.url }}</p>
+            <p>Page size: {{ crawl_data.html_length }} chars</p>
+            <p>ISSNs found: {{ crawl_data.issns_found }}</p>
+            <p>Emails found: {{ crawl_data.emails_found }}</p>
+            <p>Submission portal present: {{ crawl_data.checks.submission_portal_present }}</p>
+            <p>Ethics policy present: {{ crawl_data.checks.ethics_policy_present }}</p>
+            <p>Review policy present: {{ crawl_data.checks.review_policy_present }}</p>
+            <p>Editorial board present: {{ crawl_data.checks.editorial_board_present }}</p>
+            <p>Rapid publication claim: {{ crawl_data.checks.rapid_publication_claim }}</p>
+        </div>
+        {% endif %}
+
+        <div class="section">
+            <h3>Full Report</h3>
+            <pre>{{ report_text }}</pre>
+        </div>
+
+        <p><a href="/">Evaluate another journal</a></p>
+    </div>
+</body>
+</html>

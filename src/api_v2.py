@@ -1,0 +1,200 @@
+"""
+FastAPI web interface for MTU Journal Evaluator - v2 with auth and admin routes.
+"""
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+from typing import Optional
+import json
+import io
+
+from src.models import JournalInput
+from src.evaluator import MTUJournalEvaluator
+from src.crawler import JournalCrawler
+from src.blacklist import BlacklistChecker
+from src.blacklist_feeds import BlacklistAggregator
+from src.verifiers import ISSNVerifier, DOIVerifier, PublisherVerifier, EditorialBoardVerifier
+from src.database import EvaluationDatabase
+from src.auth import get_current_user, require_admin, authenticate_user, create_access_token
+from src.admin_api import admin_router
+from src.batch_import import BatchImporter
+
+app = FastAPI(title="MTU Journal Evaluator")
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+db = EvaluationDatabase()
+evaluator = MTUJournalEvaluator()
+aggregator = BlacklistAggregator()
+
+app.include_router(admin_router)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, user: Optional[dict] = Depends(get_current_user)):
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+
+
+@app.post("/evaluate")
+async def evaluate_journal(
+    request: Request,
+    name: str = Form(...),
+    url: str = Form(...),
+    issn_print: Optional[str] = Form(None),
+    issn_online: Optional[str] = Form(None),
+    doi_prefix: Optional[str] = Form(None),
+    publisher_name: Optional[str] = Form(None),
+    publisher_url: Optional[str] = Form(None),
+    publisher_address: Optional[str] = Form(None),
+    editorial_board_url: Optional[str] = Form(None),
+    submission_portal_url: Optional[str] = Form(None),
+    ethics_policy_url: Optional[str] = Form(None),
+    open_access: bool = Form(False),
+    submission_email_only: bool = Form(False),
+    claimed_indexes: Optional[str] = Form(None),
+    metric_claims: Optional[str] = Form(None),
+    rapid_publication_claim: bool = Form(False),
+    lock_pdfs: bool = Form(False),
+    crawl: bool = Form(False),
+    user: Optional[dict] = Depends(get_current_user),
+):
+    journal = JournalInput(
+        name=name,
+        url=url,
+        issn_print=issn_print,
+        issn_online=issn_online,
+        doi_prefix=doi_prefix,
+        publisher_name=publisher_name,
+        publisher_url=publisher_url,
+        publisher_address=publisher_address,
+        editorial_board_url=editorial_board_url,
+        submission_portal_url=submission_portal_url,
+        ethics_policy_url=ethics_policy_url,
+        open_access=open_access,
+        submission_email_only=submission_email_only,
+        claimed_indexes=[x.strip() for x in (claimed_indexes or "").split(",") if x.strip()],
+        metric_claims=[x.strip() for x in (metric_claims or "").split(",") if x.strip()],
+        rapid_publication_claim=rapid_publication_claim,
+        lock_pdfs=lock_pdfs,
+    )
+
+    crawl_data = {}
+    if crawl:
+        crawler = JournalCrawler(url)
+        crawl_data = crawler.analyze()
+        if crawl_data.get("issns_found"):
+            if not journal.issn_print:
+                journal.issn_print = crawl_data["issns_found"][0]
+        checks = crawl_data.get("checks", {})
+        if checks.get("email_only_submission"):
+            journal.submission_email_only = True
+        if checks.get("predatory_metrics_present"):
+            journal.metric_claims.extend(
+                [k for k, v in checks["predatory_metrics_present"].items() if v]
+            )
+
+    report_text = evaluator.evaluate_and_report(journal, fmt="text")
+    report_json = evaluator.evaluate_and_report(journal, fmt="json")
+    result = json.loads(report_json)
+
+    verifier_results = {
+        "issn": ISSNVerifier.verify(journal.issn_print) if journal.issn_print else None,
+        "doi": DOIVerifier.verify(journal.doi_prefix) if journal.doi_prefix else None,
+        "publisher": PublisherVerifier.verify(
+            journal.publisher_name, journal.publisher_url, journal.publisher_address
+        ),
+        "editorial_board": EditorialBoardVerifier.verify(journal.editorial_board_url),
+    }
+    blacklist = BlacklistChecker.check(journal.name, journal.claimed_indexes, journal.metric_claims)
+
+    # Also check live blacklist feeds
+    live_blacklists = aggregator.is_blacklisted(journal.name)
+    if live_blacklists["blacklisted"]:
+        blacklist["blacklisted"] = True
+        blacklist["issues"].extend(
+            [f"Found in blacklist feed: {m}" for m in live_blacklists["matches"]]
+        )
+
+    eval_id = db.save_evaluation(result, evaluated_by="web_form")
+    return templates.TemplateResponse("report.html", {
+        "request": request,
+        "result": result,
+        "report_text": report_text,
+        "verifier_results": verifier_results,
+        "blacklist": blacklist,
+        "crawl_data": crawl_data,
+        "eval_id": eval_id,
+        "user": user,
+    })
+
+
+@app.get("/evaluations")
+async def list_evaluations(status: Optional[str] = None, user: Optional[dict] = Depends(get_current_user)):
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    items = db.list_evaluations(status=status)
+    return JSONResponse(items)
+
+
+@app.get("/evaluations/{eval_id}")
+async def get_evaluation(eval_id: int, user: Optional[dict] = Depends(get_current_user)):
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    item = db.get_evaluation(eval_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Not found")
+    return JSONResponse(item)
+
+
+@app.post("/evaluations/{eval_id}/appeal")
+async def appeal(eval_id: int, status: str = Form(...), notes: str = Form(...), user: Optional[dict] = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    db.update_appeal(eval_id, status, notes)
+    return {"success": True, "eval_id": eval_id, "appeal_status": status}
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_form(request: Request, error: str = ""):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+
+
+@app.post("/login")
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    user = authenticate_user(username, password)
+    if not user:
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+    token = create_access_token({"sub": user["username"], "role": user["role"]})
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=480*60)
+    return resp
+
+
+@app.get("/logout")
+async def logout():
+    resp = RedirectResponse(url="/", status_code=303)
+    resp.delete_cookie("access_token")
+    return resp
+
+
+@app.post("/batch")
+async def batch_import(
+    file: UploadFile = File(...),
+    user: Optional[dict] = Depends(require_admin),
+):
+    content = await file.read()
+    text = content.decode("utf-8", errors="ignore")
+    filename = file.filename or ""
+    if filename.endswith(".xlsx") or filename.endswith(".xls"):
+        rows = BatchImporter.parse_excel(io.BytesIO(content))
+    else:
+        rows = BatchImporter.parse_csv(text)
+    results = BatchImporter.batch_evaluate(rows, save=True)
+    accepted = sum(1 for r in results if r.get("status") == "ACCEPTED")
+    rejected = sum(1 for r in results if r.get("status") == "REJECTED")
+    conditional = sum(1 for r in results if r.get("status") == "CONDITIONAL")
+    errors = sum(1 for r in results if r.get("status") == "ERROR")
+    return templates.TemplateResponse("batch_report.html", {
+        "request": request,
+        "results": results,
+        "stats": {"total": len(results), "accepted": accepted, "rejected": rejected, "conditional": conditional, "errors": errors},
+    })
