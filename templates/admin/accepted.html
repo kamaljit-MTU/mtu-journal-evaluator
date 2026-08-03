@@ -18,15 +18,6 @@
 </head>
 <body>
     <div class="container">
-        <div class="nav">
-            <a href="/">Evaluator</a>
-            <a href="/admin">Dashboard</a>
-            <a href="/admin/interventions">Interventions</a>
-            <a href="/admin/rejected">Rejected Journals</a>
-            <a href="/admin/accepted">Accepted Journals</a>
-            <a href="/logout">Logout ({{ user.username }})</a>
-        </div>
-
         <h1>Accepted Journals</h1>
         <p>Journals that passed evaluation and were automatically added to the accepted database.</p>
 
@@ -37,22 +28,18 @@
                 <th>Status</th>
                 <th>Score</th>
                 <th>Date</th>
-                <th>Actions</th>
             </tr>
-            {% for e in evaluations %}
+            {% for e in items %}
             <tr>
                 <td>#{{ e.id }}</td>
                 <td><a href="/admin/evaluations/{{ e.id }}">{{ e.journal_name }}</a></td>
                 <td class="accepted">{{ e.status }}</td>
                 <td class="accepted">{{ e.total_score }}/{{ e.max_score }}</td>
                 <td>{{ e.evaluated_at[:10] }}</td>
-                <td>
-                    <a href="/admin/evaluations/{{ e.id }}" class="btn btn-primary">View</a>
-                </td>
             </tr>
             {% endfor %}
-            {% if not evaluations %}
-            <tr><td colspan="6">No accepted evaluations found.</td></tr>
+            {% if not items %}
+            <tr><td colspan="5">No accepted evaluations found.</td></tr>
             {% endif %}
         </table>
     </div>

@@ -20,24 +20,8 @@
 </head>
 <body>
     <div class="container">
-        <div class="nav">
-            <a href="/">Evaluator</a>
-            <a href="/admin">Dashboard</a>
-            <a href="/admin/interventions">Interventions</a>
-            <a href="/admin/rejected">Rejected Journals</a>
-            <a href="/admin/accepted">Accepted Journals</a>
-            <a href="/logout">Logout ({{ user.username }})</a>
-        </div>
-
         <h1>Rejected Journals</h1>
         <p>Journals that failed evaluation and were automatically added to the rejected database.</p>
-
-        <div class="stat-box">
-            <strong>Note:</strong> Rejected journals are automatically saved with full context including
-            rejection triggers, blacklist matches, deep search results, and human review flags.
-        </div>
-
-        <p><em>Rejected journal records are created automatically during evaluation. Use the Interventions page to review flagged cases and assign committee members.</em></p>
 
         <table>
             <tr>
@@ -47,11 +31,8 @@
                 <th>Score</th>
                 <th>Rejection Triggers</th>
                 <th>Human Review</th>
-                <th>Actions</th>
             </tr>
-            {% if evaluations %}
-            {% for e in evaluations %}
-            {% if e.status == 'REJECTED' %}
+            {% for e in items %}
             <tr>
                 <td>#{{ e.id }}</td>
                 <td><a href="/admin/evaluations/{{ e.id }}">{{ e.journal_name }}</a></td>
@@ -63,15 +44,10 @@
                     {% endfor %}
                 </td>
                 <td>{{ e.appeal_status }}</td>
-                <td>
-                    <a href="/admin/evaluations/{{ e.id }}" class="btn btn-primary">View</a>
-                    <a href="/admin/interventions" class="btn btn-warning">Review</a>
-                </td>
             </tr>
-            {% endif %}
             {% endfor %}
-            {% else %}
-            <tr><td colspan="7">No evaluations found.</td></tr>
+            {% if not items %}
+            <tr><td colspan="6">No evaluations found.</td></tr>
             {% endif %}
         </table>
     </div>

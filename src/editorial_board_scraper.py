@@ -30,7 +30,7 @@ class EditorialBoardScraper:
 
     ORCID_PATTERN = re.compile(r'0000-\d{4}-\d{4}-[\dX]{4}', re.IGNORECASE)
     EMAIL_PATTERN = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
-    H_INDEX_PATTERN = re.compile(r'h[- ]?index[:\\s]+(\\d+)', re.IGNORECASE)
+    H_INDEX_PATTERN = re.compile(r'h[- ]?index[:\s]+(\d+)', re.IGNORECASE)
 
     @staticmethod
     def scrape(url: str, augment: bool = True) -> Dict[str, Any]:
@@ -60,26 +60,30 @@ class EditorialBoardScraper:
             soup = BeautifulSoup(response.text, 'html.parser')
             editors = []
 
-            # Strategy 1: Look for ORCID links directly
+            # Strategy 1: Look for ORCID links within named editorial containers
             orcid_links = soup.find_all('a', href=re.compile(r'orcid\.org', re.IGNORECASE))
             for link in orcid_links:
                 orcid_match = EditorialBoardScraper.ORCID_PATTERN.search(link.get('href', ''))
                 if orcid_match:
                     orcid_id = orcid_match.group(0)
-                    parent = link.find_parent(['td', 'li', 'div', 'p', 'article'])
+                    # Prefer the closest editorial/member card container for name/affiliation
+                    container = link.find_parent(['article', 'section', 'div', 'li', 'td', 'p'], class_=re.compile(r'editor|member|card|profile|item|person', re.IGNORECASE))
+                    if not container:
+                        container = link.find_parent(['article', 'section', 'div', 'li', 'td', 'p'])
                     name = None
-                    if parent:
-                        heading = parent.find(['h1','h2','h3','h4','h5','h6','strong','b'])
+                    affiliation = None
+                    if container:
+                        heading = container.find(['h1','h2','h3','h4','h5','h6','strong','b'])
                         if heading:
                             name = EditorialBoardScraper._clean_text(heading.get_text())
                         if not name:
-                            text = parent.get_text(separator=' ', strip=True)
+                            text = container.get_text(separator=' ', strip=True)
                             first_line = text.split('\n')[0].strip()
                             if first_line and len(first_line) > 2 and len(first_line) < 200:
                                 name = first_line[:200]
+                        affiliation = EditorialBoardScraper._clean_text(container.get_text())
                     if not name:
                         name = EditorialBoardScraper._clean_text(link.get_text())
-                    affiliation = EditorialBoardScraper._clean_text(parent.get_text()) if parent else None
                     if name and len(name) > 2 and 'orcid' not in name.lower():
                         editors.append({
                             "name": name,
@@ -155,11 +159,15 @@ class EditorialBoardScraper:
         """Augment editor records with missing ORCIDs and h-indices."""
         for editor in editors:
             name = editor.get("name", "")
-            parts = name.strip().split()
+            # Remove common titles like Dr., Prof., Mr., Mrs., Ms.
+            tokens = [t for t in name.replace('.', ' ').replace(',', ' ').split() if t and t.lower() not in ['dr', 'prof', 'mr', 'mrs', 'ms', 'sir', 'madam']]
+            # prefer a two-token name for lookup
+            best_given = tokens[0] if len(tokens) > 0 else ''
+            best_family = tokens[-1] if len(tokens) > 1 else (tokens[0] if len(tokens) == 1 else '')
 
             # Search ORCID if missing
-            if not editor.get("orcid") and len(parts) >= 2:
-                orcid_id = EditorialBoardScraper._search_orcid_by_name(parts[0], parts[-1])
+            if not editor.get("orcid") and best_given and best_family:
+                orcid_id = EditorialBoardScraper._search_orcid_by_name(best_given, best_family)
                 if orcid_id:
                     editor["orcid"] = orcid_id
                     editor["orcid_source"] = "orcid_search"
@@ -177,14 +185,14 @@ class EditorialBoardScraper:
     def _search_orcid_by_name(given_name: str, family_name: str) -> Optional[str]:
         """Search ORCID.org public API for an ORCID ID by name."""
         try:
-            query = f'givenNames:{quote(given_name)}+familyName:{quote(family_name)}'
-            url = f"https://pub.orcid.org/v3.0/expanded-search/?q={query}"
+            query = quote(f'given-names:{given_name} AND family-name:{family_name}')
+            url = f"https://pub.orcid.org/v3.0/search/?q={query}"
             response = requests.get(url, headers=EditorialBoardScraper.ORCID_HEADERS, timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                results = data.get("expanded-result", [])
+                results = data.get("result", [])
                 if results:
-                    return results[0].get("orcid-id")
+                    return results[0].get("orcid-identifier", {}).get("path")
         except Exception:
             pass
         return None
