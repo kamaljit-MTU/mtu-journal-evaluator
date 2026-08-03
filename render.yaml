@@ -9,7 +9,6 @@ services:
     branch: main
     rootDir: .
     buildCommand: docker build -t mtu-journal-evaluator .
-    startCommand: gunicorn src.api_v2:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /
     envVars:
       - key: SECRET_KEY
