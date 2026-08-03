@@ -4,6 +4,7 @@ FastAPI web interface for MTU Journal Evaluator - v2 with auth and admin routes.
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from typing import Optional
 import json
@@ -28,6 +29,7 @@ aggregator = BlacklistAggregator()
 intervention_queue = HumanInterventionQueue()
 
 app.include_router(admin_router)
+app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "static")), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -205,6 +207,7 @@ async def request_manual_review(
     parameter_name: str = Form(...),
     issue_description: str = Form(...),
     severity: str = Form("medium"),
+    reviewer_email: str = Form(...),
     user: Optional[dict] = Depends(get_current_user),
 ):
     intervention_queue.create_intervention(
@@ -213,6 +216,28 @@ async def request_manual_review(
         issue_description=issue_description,
         severity=severity,
         evaluation_id=eval_id,
+        committee_member_email=reviewer_email,
         auto_verification_failure_reason="Manual review requested from report page"
+    )
+    return RedirectResponse(url="/admin/interventions", status_code=303)
+
+
+@app.post("/interventions/request")
+async def public_request_manual_review(
+    eval_id: int = Form(...),
+    journal_name: str = Form(...),
+    parameter_name: str = Form(...),
+    issue_description: str = Form(...),
+    severity: str = Form("medium"),
+    reviewer_email: str = Form(...),
+):
+    intervention_queue.create_intervention(
+        journal_name=journal_name,
+        parameter_name=parameter_name,
+        issue_description=issue_description,
+        severity=severity,
+        evaluation_id=eval_id,
+        committee_member_email=reviewer_email,
+        auto_verification_failure_reason="Public manual review request"
     )
     return RedirectResponse(url="/admin/interventions", status_code=303)
