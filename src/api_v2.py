@@ -80,9 +80,10 @@ async def evaluate_journal(
         lock_pdfs=lock_pdfs,
     )
 
-    report_text = evaluator.evaluate_and_report(journal, fmt="text", save_accepted=save_accepted)
-    report_json = evaluator.evaluate_and_report(journal, fmt="json", save_accepted=False)
-    result = json.loads(report_json)
+    result = evaluator.evaluate(journal, save_accepted=save_accepted)
+    report_text = evaluator.reporter.generate_text_report(result)
+    report_json = evaluator.reporter.generate_json_report(result)
+    result_dict = json.loads(report_json)
 
     verifier_results = {
         "issn": ISSNVerifier.verify(journal.issn_print) if journal.issn_print else None,
@@ -102,7 +103,7 @@ async def evaluate_journal(
             [f"Found in blacklist feed: {m}" for m in live_blacklists["matches"]]
         )
 
-    eval_id = db.save_evaluation(result, evaluated_by="web_form")
+    eval_id = db.save_evaluation(result_dict, evaluated_by="web_form")
     return templates.TemplateResponse("report.html", {
         "request": request,
         "result": result,
