@@ -11,7 +11,6 @@ import io
 
 from src.models import JournalInput
 from src.evaluator import MTUJournalEvaluator
-from src.crawler import JournalCrawler
 from src.blacklist import BlacklistChecker
 from src.blacklist_feeds import BlacklistAggregator
 from src.verifiers import ISSNVerifier, DOIVerifier, PublisherVerifier, EditorialBoardVerifier
@@ -77,21 +76,6 @@ async def evaluate_journal(
         lock_pdfs=lock_pdfs,
     )
 
-    crawl_data = {}
-    if crawl:
-        crawler = JournalCrawler(url)
-        crawl_data = crawler.analyze()
-        if crawl_data.get("issns_found"):
-            if not journal.issn_print:
-                journal.issn_print = crawl_data["issns_found"][0]
-        checks = crawl_data.get("checks", {})
-        if checks.get("email_only_submission"):
-            journal.submission_email_only = True
-        if checks.get("predatory_metrics_present"):
-            journal.metric_claims.extend(
-                [k for k, v in checks["predatory_metrics_present"].items() if v]
-            )
-
     report_text = evaluator.evaluate_and_report(journal, fmt="text", save_accepted=save_accepted)
     report_json = evaluator.evaluate_and_report(journal, fmt="json", save_accepted=False)
     result = json.loads(report_json)
@@ -121,7 +105,7 @@ async def evaluate_journal(
         "report_text": report_text,
         "verifier_results": verifier_results,
         "blacklist": blacklist,
-        "crawl_data": crawl_data,
+        "crawl_data": {},
         "eval_id": eval_id,
         "user": user,
     })
