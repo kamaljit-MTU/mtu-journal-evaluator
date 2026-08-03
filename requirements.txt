@@ -9,3 +9,4 @@ sqlalchemy==2.0.51
 gunicorn==26.0.0
 bcrypt<5
 psycopg2-binary>=2.9
+beautifulsoup4>=4.12

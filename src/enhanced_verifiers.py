@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 
 from src.verifiers import ISSNVerifier, DOIVerifier, PublisherVerifier, EditorialBoardVerifier
+from src.editorial_board_scraper import EditorialBoardScraper
 
 
 class JournalHistoryVerifier:
@@ -84,52 +85,50 @@ class JournalHistoryVerifier:
 
 
 class ORCIDEditorVerifier:
-    """Verify editorial board members via ORCID.org."""
+    """Verify editorial board members via ORCID.org and infer h-index from web sources."""
 
     ORCID_BASE_URL = "https://pub.orcid.org/v3.0"
+    HEADERS = {'Accept': 'application/json', 'User-Agent': 'MTU-Journal-Evaluator/1.0'}
 
     @staticmethod
     def verify_editor(orcid_id: str) -> Dict[str, Any]:
-        """Verify an ORCID ID and return profile data."""
+        """Verify an ORCID ID against ORCID.org and return profile data."""
         result = {
             "orcid_id": orcid_id,
             "valid": False,
             "name": None,
             "affiliation": None,
             "works_count": 0,
-            "citation_count": 0,
             "h_index_estimate": None,
             "verification_url": f"https://orcid.org/{orcid_id}"
         }
 
-        # Validate ORCID format (0000-0000-0000-000X)
         if not re.match(r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$', orcid_id):
             result["error"] = "Invalid ORCID format"
             return result
 
-        # Try to fetch public ORCID data
         try:
             import requests
-            headers = {'Accept': 'application/json'}
             url = f"{ORCIDEditorVerifier.ORCID_BASE_URL}/{orcid_id}/person"
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=ORCIDEditorVerifier.HEADERS, timeout=10)
 
             if response.status_code == 200:
                 data = response.json()
                 result["valid"] = True
                 result["name"] = ORCIDEditorVerifier._extract_name(data)
-
-                # Get affiliation from employment/education
                 affiliations = ORCIDEditorVerifier._extract_affiliations(data)
                 result["affiliation"] = affiliations[0] if affiliations else None
 
-                # Get works summary for impact metrics
                 works_url = f"{ORCIDEditorVerifier.ORCID_BASE_URL}/{orcid_id}/works"
-                works_response = requests.get(works_url, headers=headers, timeout=10)
+                works_response = requests.get(works_url, headers=ORCIDEditorVerifier.HEADERS, timeout=10)
                 if works_response.status_code == 200:
                     works_data = works_response.json()
-                    result["works_count"] = works_data.get("group", [])
-                    result["works_count"] = len(result["works_count"]) if isinstance(result["works_count"], list) else 0
+                    groups = works_data.get("group", [])
+                    result["works_count"] = len(groups) if isinstance(groups, list) else 0
+            elif response.status_code == 404:
+                result["error"] = "ORCID not found"
+            else:
+                result["error"] = f"ORCID API returned {response.status_code}"
         except Exception as e:
             result["error"] = f"ORCID lookup failed: {str(e)}"
 
@@ -137,16 +136,13 @@ class ORCIDEditorVerifier:
 
     @staticmethod
     def verify_editorial_board(editors: List[Dict[str, str]]) -> Dict[str, Any]:
-        """Verify a list of editorial board members."""
+        """Verify a list of editorial board members using live ORCID data."""
         results = {
             "total_editors": len(editors),
             "verified": 0,
             "unverified": 0,
             "with_orcid": 0,
-            "geographic_diversity": {
-                "countries": [],
-                "institutions": []
-            },
+            "geographic_diversity": {"countries": [], "institutions": []},
             "verifications": []
         }
 
@@ -159,7 +155,8 @@ class ORCIDEditorVerifier:
                 "name": name,
                 "orcid": orcid,
                 "orcid_valid": False,
-                "affiliation": affiliation
+                "affiliation": affiliation,
+                "orcid_data": None
             }
 
             if orcid:
@@ -171,9 +168,7 @@ class ORCIDEditorVerifier:
                 if orcid_result.get("valid"):
                     results["verified"] += 1
                     if orcid_result.get("affiliation"):
-                        results["geographic_diversity"]["institutions"].append(
-                            orcid_result["affiliation"]
-                        )
+                        results["geographic_diversity"]["institutions"].append(orcid_result["affiliation"])
                 else:
                     results["unverified"] += 1
             else:
@@ -181,20 +176,16 @@ class ORCIDEditorVerifier:
 
             results["verifications"].append(verification)
 
-        # Extract countries from affiliations
         results["geographic_diversity"]["countries"] = list(set(
             ORCIDEditorVerifier._extract_countries(results["geographic_diversity"]["institutions"])
         ))
-
         results["verification_rate"] = (
             results["verified"] / len(editors) if editors else 0
         )
-
         return results
 
     @staticmethod
     def _extract_name(data: Dict) -> Optional[str]:
-        """Extract name from ORCID person data."""
         try:
             name_data = data.get("name", {})
             if name_data:
@@ -203,16 +194,14 @@ class ORCIDEditorVerifier:
                 if given and family:
                     return f"{given} {family}"
                 return given or family or None
-        except:
+        except Exception:
             pass
         return None
 
     @staticmethod
     def _extract_affiliations(data: Dict) -> List[str]:
-        """Extract affiliations from ORCID person data."""
         affiliations = []
         try:
-            # Check employment
             employment = data.get("employment", {}).get("employment-summary", [])
             for emp in employment:
                 org = emp.get("organization", {})
@@ -221,7 +210,6 @@ class ORCIDEditorVerifier:
                     if name:
                         affiliations.append(name)
 
-            # Check education
             education = data.get("education", {}).get("education-summary", [])
             for edu in education:
                 org = edu.get("organization", {})
@@ -229,28 +217,25 @@ class ORCIDEditorVerifier:
                     name = org.get("name", "")
                     if name and name not in affiliations:
                         affiliations.append(name)
-        except:
+        except Exception:
             pass
         return affiliations
 
     @staticmethod
     def _extract_countries(institutions: List[str]) -> List[str]:
-        """Extract country codes from institution names."""
-        # This is a simplified version - in production, use a geocoding API
         country_keywords = {
-            "india": "IN", "usa": "US", "uk": "GB", "germany": "DE",
-            "france": "FR", "japan": "JP", "china": "CN", "australia": "AU",
-            "canada": "CA", "brazil": "BR", "south africa": "ZA",
-            "singapore": "SG", "netherlands": "NL", "spain": "ES"
+            "india": "IN", "usa": "US", "united states": "US", "uk": "GB",
+            "united kingdom": "GB", "germany": "DE", "france": "FR", "japan": "JP",
+            "china": "CN", "australia": "AU", "canada": "CA", "brazil": "BR",
+            "south africa": "ZA", "singapore": "SG", "netherlands": "NL",
+            "spain": "ES", "italy": "IT", "russia": "RU", "south korea": "KR"
         }
-
         countries = []
         for inst in institutions:
             inst_lower = inst.lower()
             for keyword, code in country_keywords.items():
                 if keyword in inst_lower:
                     countries.append(code)
-
         return countries
 
 
@@ -334,6 +319,8 @@ class GeographicDiversityVerifier:
 class DeepWebSearcher:
     """Perform deep web searches for journal verification."""
 
+    HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
     @staticmethod
     def search_journal_reputation(journal_name: str, publisher: Optional[str] = None) -> Dict[str, Any]:
         """Search for journal reputation and reviews online."""
@@ -348,13 +335,10 @@ class DeepWebSearcher:
 
         try:
             import requests
-
-            # Search 1: Check for predatory publishing warnings
             search_queries = [
                 f'"{journal_name}" predatory',
                 f'"{journal_name}" fake journal',
                 f'"{journal_name}" hijacked journal',
-                f'"{journal_name}" stingray',
                 f'"{journal_name}" bealls list',
                 f'"{journal_name}" cabells'
             ]
@@ -362,31 +346,21 @@ class DeepWebSearcher:
             for query in search_queries:
                 try:
                     search_url = f"https://www.google.com/search?q={quote(query)}"
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                    response = requests.get(search_url, headers=headers, timeout=10)
+                    response = requests.get(search_url, headers=DeepWebSearcher.HEADERS, timeout=10)
                     result["searches_performed"].append({
                         "query": query,
                         "status": response.status_code,
                         "result_length": len(response.text)
                     })
 
-                    # Check for red flags in search results
                     text_lower = response.text.lower()
                     if any(word in text_lower for word in ['predatory', 'fake', 'hijacked', 'scam', 'spam']):
                         result["red_flags"].append(query)
-
                     if any(word in text_lower for word in ['legitimate', 'reputable', 'indexed', 'peer-reviewed']):
                         result["positive_signals"].append(query)
-
                 except Exception as e:
-                    result["searches_performed"].append({
-                        "query": query,
-                        "error": str(e)
-                    })
+                    result["searches_performed"].append({"query": query, "error": str(e)})
 
-            # Calculate reputation score
             total_negative = len(result["red_flags"])
             total_positive = len(result["positive_signals"])
             total_searches = len(result["searches_performed"])
@@ -394,7 +368,6 @@ class DeepWebSearcher:
             if total_searches > 0:
                 result["reputation_score"] = max(0, (total_positive - total_negative) / total_searches)
 
-            # Flag for human review if high red flag count
             if total_negative >= 3:
                 result["needs_human_review"] = True
                 result["human_review_reason"] = "Multiple negative search results found"
@@ -404,3 +377,65 @@ class DeepWebSearcher:
             result["needs_human_review"] = True
 
         return result
+
+
+class HIndexEstimator:
+    """Estimate editor h-index from available public sources."""
+
+    @staticmethod
+    def estimate_by_name(name: str, affiliation: Optional[str] = None) -> Dict[str, Any]:
+        """Estimate h-index for an editor by name using web search fallback."""
+        result = {
+            "name": name,
+            "h_index_estimate": None,
+            "h_index_source": None,
+            "h_index_confidence": "low",
+            "profile_found": False
+        }
+
+        if not name or len(name.strip().split()) < 2:
+            return result
+
+        try:
+            import requests
+            query = f'"{name}" h-index'
+            if affiliation:
+                query += f' "{affiliation}"'
+
+            search_url = f"https://www.google.com/search?q={quote(query)}"
+            response = requests.get(search_url, headers=DeepWebSearcher.HEADERS, timeout=10)
+
+            if response.status_code == 200:
+                text = response.text.lower()
+                h_index_match = re.search(r'h[- ]?index[:\s]+(\d+)', text)
+                if h_index_match:
+                    result["h_index_estimate"] = int(h_index_match.group(1))
+                    result["h_index_source"] = "web_search"
+                    result["h_index_confidence"] = "medium"
+                    result["profile_found"] = True
+        except Exception:
+            pass
+
+        return result
+
+    @staticmethod
+    def estimate_batch(editors: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Estimate h-index for multiple editors."""
+        results = {
+            "total": len(editors),
+            "estimated": 0,
+            "not_found": 0,
+            "estimations": []
+        }
+
+        for editor in editors[:20]:  # Cap to avoid excessive requests
+            name = editor.get("name", "")
+            affiliation = editor.get("affiliation")
+            est = HIndexEstimator.estimate_by_name(name, affiliation)
+            results["estimations"].append(est)
+            if est.get("h_index_estimate") is not None:
+                results["estimated"] += 1
+            else:
+                results["not_found"] += 1
+
+        return results

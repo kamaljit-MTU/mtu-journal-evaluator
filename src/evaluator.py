@@ -8,8 +8,9 @@ from .scoring_engine import ScoringEngine
 from .reporting import ReportGenerator
 from .enhanced_verifiers import (
     JournalHistoryVerifier, ORCIDEditorVerifier,
-    GeographicDiversityVerifier, DeepWebSearcher
+    GeographicDiversityVerifier, DeepWebSearcher, HIndexEstimator
 )
+from .editorial_board_scraper import EditorialBoardScraper
 from .rejected_journals_db import RejectedJournalDatabase
 from .accepted_journals_db import AcceptedJournalDatabase
 from .human_intervention import HumanInterventionQueue
@@ -123,11 +124,54 @@ class MTUJournalEvaluator:
         )
         verification_data["journal_history"] = journal_history
 
-        # 2. Geographic Diversity Verification
+        # 2. Scrape editorial board and verify ORCIDs + h-index
+        editors = []
         if journal.editorial_board_url:
-            # Try to extract editor info from URL (simplified)
-            geo_diversity = GeographicDiversityVerifier.verify([])
-            verification_data["geographic_diversity"] = geo_diversity
+            scraped = EditorialBoardScraper.scrape(journal.editorial_board_url)
+            editors = scraped.get("editors", [])
+            if scraped.get("success"):
+                verification_data["editorial_board_scrape"] = {
+                    "url": journal.editorial_board_url,
+                    "total_editors": scraped.get("total_editors", 0),
+                    "with_orcid": scraped.get("with_orcid", 0),
+                    "with_affiliation": scraped.get("with_affiliation", 0),
+                    "countries": scraped.get("countries", []),
+                }
+
+        if editors:
+            # Live ORCID verification
+            orcid_verification = ORCIDEditorVerifier.verify_editorial_board(editors)
+            verification_data["orcid_verification"] = orcid_verification
+
+            # h-index estimation from Google Scholar / Scopus / Web of Science via web search
+            h_index_results = HIndexEstimator.estimate_batch(editors)
+            verification_data["h_index_estimation"] = h_index_results
+
+            # Geographic diversity from verified affiliations
+            geo_data = GeographicDiversityVerifier.verify(editors)
+            if not geo_data.get("countries"):
+                geo_data["countries"] = orcid_verification.get("geographic_diversity", {}).get("countries", [])
+            verification_data["geographic_diversity"] = geo_data
+        else:
+            # Fallback if no editorial board URL or scraping failed
+            verification_data["orcid_verification"] = {
+                "total_editors": 0,
+                "verified": 0,
+                "verification_rate": 0.0,
+                "needs_human_review": True,
+                "human_review_reason": "Editorial board data could not be retrieved"
+            }
+            verification_data["geographic_diversity"] = {
+                "total_editors": 0,
+                "countries": [],
+                "diversity_rating": "unknown",
+                "needs_human_review": True
+            }
+            verification_data["h_index_estimation"] = {
+                "total": 0,
+                "estimated": 0,
+                "not_found": 0
+            }
 
         # 3. Deep Web Search
         web_search = DeepWebSearcher.search_journal_reputation(
