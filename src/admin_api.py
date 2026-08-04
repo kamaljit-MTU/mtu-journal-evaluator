@@ -108,7 +108,7 @@ async def admin_blacklists(user: Optional[dict] = Depends(require_admin)):
 
 
 @admin_router.get("/admin/interventions", response_class=HTMLResponse)
-async def admin_interventions(request: Request, user: Optional[dict] = Depends(get_current_user)):
+async def admin_interventions(request: Request):
     try:
         status_filter = request.query_params.get("status", "pending")
         if status_filter == "pending":
@@ -118,10 +118,10 @@ async def admin_interventions(request: Request, user: Optional[dict] = Depends(g
         else:
             interventions = intervention_queue.get_pending_interventions(limit=100)
 
-        print(f"[ADMIN] Rendering interventions page with {len(interventions)} items, filter={status_filter}, user={user.get('username') if user else 'public'}")
+        print(f"[ADMIN] Rendering interventions page with {len(interventions)} items, filter={status_filter}")
         return templates.TemplateResponse("admin/interventions.html", {
             "request": request,
-            "user": user,
+            "user": None,
             "interventions": interventions,
             "filter": status_filter,
         })
