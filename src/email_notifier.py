@@ -1,15 +1,15 @@
 """
 Email notification module for committee review.
-Supports Brevo HTTPS API as primary, SMTP as fallback.
+Supports SendGrid HTTPS API as primary, SMTP as fallback.
 """
 import os
-import json
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Optional
 from src.config import settings
-import requests
+
+try:
+    import requests
+except Exception:
+    requests = None  # type: ignore
 
 
 class EmailNotifier:
@@ -22,8 +22,9 @@ class EmailNotifier:
         eval_id: int,
         issue_description: str = ""
     ):
-        """Send email notification for new intervention via Brevo API or SMTP."""
+        """Send email notification for new intervention via SendGrid API or SMTP."""
         subject = f"Journal Review Request: {journal_name} - {parameter_name}"
+        committee_email = settings.COMMITTEE_EMAIL
         
         body = f"""
 New manual review request submitted for journal evaluation.
@@ -37,49 +38,61 @@ Issue Description: {issue_description or 'No description provided'}
 Please review this intervention in the admin panel:
 https://mtu-journal-evaluator.onrender.com/admin/interventions
 
+Committee email: {committee_email}
+
 ---
 MTU Journal Evaluator
         """.strip()
         
-        # Try Brevo HTTPS API first
-        brevo_api_key = os.getenv("BREVO_API_KEY")
-        from_email = os.getenv("FROM_EMAIL", settings.COMMITTEE_EMAIL)
+        print(f"[EMAIL NOTIFICATION] Preparing email to={to_email}, subject={subject}")
         
-        if brevo_api_key and from_email:
+        # Try SendGrid HTTPS API first
+        sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+        from_email = os.getenv("FROM_EMAIL", committee_email)
+        
+        if sendgrid_api_key and requests:
             try:
                 resp = requests.post(
-                    "https://api.brevo.com/v3/smtp/email",
+                    "https://api.sendgrid.com/v3/mail/send",
                     headers={
-                        "api-key": brevo_api_key,
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
+                        "Authorization": f"Bearer {sendgrid_api_key}",
+                        "Content-Type": "application/json"
                     },
                     json={
-                        "sender": {
-                            "name": "MTU Journal Evaluator",
-                            "email": from_email
-                        },
-                        "to": [{"email": to_email}],
-                        "subject": subject,
-                        "textContent": body
+                        "personalizations": [{
+                            "to": [{"email": to_email}],
+                            "subject": subject
+                        }],
+                        "from": {"email": from_email, "name": "MTU Journal Evaluator"},
+                        "content": [{
+                            "type": "text/plain",
+                            "value": body
+                        }]
                     },
                     timeout=15
                 )
-                if resp.status_code in (200, 201):
-                    print(f"[EMAIL SENT via Brevo] To: {to_email}, Subject: {subject}")
+                print(f"[EMAIL - SendGrid] status={resp.status_code}")
+                if resp.status_code in (200, 202):
+                    print(f"[EMAIL SENT via SendGrid] To: {to_email}, Subject: {subject}")
                     return True
                 else:
-                    print(f"[EMAIL ERROR - Brevo] {resp.status_code}: {resp.text[:300]}")
+                    print(f"[EMAIL ERROR - SendGrid] {resp.status_code}: {resp.text[:500]}")
             except Exception as e:
-                print(f"[EMAIL ERROR - Brevo] {e}")
+                print(f"[EMAIL ERROR - SendGrid] {e}")
+        elif sendgrid_api_key and not requests:
+            print("[EMAIL ERROR] requests library not available for SendGrid")
         
-        # Fallback to SMTP if Brevo not configured
+        # Fallback to SMTP if SendGrid not configured
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
         smtp_host = os.getenv("SMTP_HOST")
         smtp_port = int(os.getenv("SMTP_PORT", "0"))
         smtp_user = os.getenv("SMTP_USER")
         smtp_password = os.getenv("SMTP_PASSWORD")
         
-        if all([smtp_host, smtp_port, smtp_user, smtp_password, from_email]):
+        if all([smtp_host, smtp_port, smtp_user, smtp_password]):
             try:
                 msg = MIMEMultipart()
                 msg['From'] = from_email
@@ -97,12 +110,12 @@ MTU Journal Evaluator
             except Exception as e:
                 print(f"[EMAIL ERROR - SMTP] {e}")
         
-        # Fallback: log to console
+        # Final fallback: log to console
         print(f"[EMAIL NOTIFICATION] To: {to_email}")
         print(f"[EMAIL NOTIFICATION] Subject: {subject}")
         print(f"[EMAIL NOTIFICATION] Body:\n{body}")
         print("[EMAIL NOTIFICATION] NOTE: No email provider configured.")
-        print("  Set BREVO_API_KEY + FROM_EMAIL for HTTPS delivery, or")
+        print("  Set SENDGRID_API_KEY + FROM_EMAIL for HTTPS delivery, or")
         print("  SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD for SMTP.")
         
         return False
