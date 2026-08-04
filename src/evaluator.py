@@ -86,6 +86,27 @@ class MTUJournalEvaluator:
                     "Consider re-evaluation after improvements.",
                 ]
 
+        appendix_checks = AppendixAChecker({
+            "issn_print": journal.issn_print,
+            "issn_online": journal.issn_online,
+            "journal_name": journal.name,
+            "publisher_name": journal.publisher_name,
+            "publisher_address": journal.publisher_address,
+            "doi_prefix": journal.doi_prefix,
+            "journal_history_years": verification_data.get("journal_history", {}).get("years"),
+            "verification_data": verification_data,
+            "claimed_indexes": journal.claimed_indexes,
+            "metric_claims": journal.metric_claims,
+            "editorial_board_url": journal.editorial_board_url,
+            "aims_scope_url": journal.aims_scope_url,
+            "submission_portal_url": journal.submission_portal_url,
+            "ethics_policy_url": journal.ethics_policy_url,
+            "editors": verification_data.get("editorial_board_scrape", {}).get("editors", []),
+            "countries": verification_data.get("geographic_diversity", {}).get("countries", []),
+            "google_scholar_citations": verification_data.get("h_index_estimation", {}).get("estimated", 0),
+            "h5_index": verification_data.get("h_index_estimation", {}).get("h5_index"),
+        }).check_all()
+
         result = EvaluationResult(
             journal_name=journal.name,
             journal_url=journal.url,
@@ -98,16 +119,8 @@ class MTUJournalEvaluator:
             domain_scores=domain_scores,
             summary=summary,
             recommendations=recommendations,
-            appendix_checks=AppendixAChecker({
-                "issn_print": journal.issn_print,
-                "issn_online": journal.issn_online,
-                "journal_name": journal.name,
-                "publisher_name": journal.publisher_name,
-                "publisher_address": journal.publisher_address,
-                "doi_prefix": journal.doi_prefix,
-                "journal_history_years": verification_data.get("journal_history", {}).get("years"),
-            }).check_all(),
-            unverified_parameters=self._collect_unverified_parameters(verification_data),
+            appendix_checks=appendix_checks,
+            unverified_parameters=self._collect_unverified_parameters({"appendix_checks": appendix_checks}),
             raw_data={
                 "issn_print": journal.issn_print,
                 "issn_online": journal.issn_online,
@@ -289,93 +302,13 @@ class MTUJournalEvaluator:
         """Collect Appendix A sub-criterion parameters that failed verification or need human review."""
         unverified: List[str] = []
 
-        # Journal Identification and Authenticity
-        if verification_data.get("issn_match") in (False, None):
-            unverified.append("issn_verification")
-        if verification_data.get("title_unique") in (False, None):
-            unverified.append("title_verification")
-        if verification_data.get("publisher_legitimacy") in (False, None):
-            unverified.append("publisher_legitimacy")
-        if verification_data.get("journal_history_years") is None:
-            unverified.append("journal_history")
-        if verification_data.get("publisher_transparency") is None:
-            unverified.append("publisher_transparency")
-        if verification_data.get("doi_valid") is None:
-            unverified.append("doi_verification")
-        if verification_data.get("reputed_publisher") is None:
-            unverified.append("reputed_publisher")
-
-        # Editorial Board and Governance
-        if verification_data.get("affiliations_verified") is None:
-            unverified.append("verified_affiliations")
-        if verification_data.get("geographic_diversity_rating") in ("unknown", None):
-            unverified.append("geographic_diversity")
-        if verification_data.get("editor_h_index") is None:
-            unverified.append("editor_h_index")
-        if verification_data.get("orcid_availability") is None:
-            unverified.append("orcid_availability")
-        if verification_data.get("special_issue_editors") is None:
-            unverified.append("special_issue_editors")
-        if verification_data.get("editorial_activity") is None:
-            unverified.append("editorial_activity")
-        if verification_data.get("editorial_independence") is None:
-            unverified.append("editorial_independence")
-
-        # Peer Review and Publishing Process
-        if verification_data.get("review_type") is None:
-            unverified.append("review_type")
-        if verification_data.get("reviewer_pool") is None:
-            unverified.append("reviewer_pool")
-        if verification_data.get("review_timeline") is None:
-            unverified.append("review_timeline")
-        if verification_data.get("peer_review_history") is None:
-            unverified.append("peer_review_history")
-        if verification_data.get("acceptance_dates_consistent") is None:
-            unverified.append("acceptance_dates_consistency")
-        if verification_data.get("appeals_process") is None:
-            unverified.append("appeals_process")
-        if verification_data.get("retraction_policy") is None:
-            unverified.append("retraction_policy")
-
-        # Website and Infrastructure
-        if verification_data.get("language_quality") is None:
-            unverified.append("language_quality")
-        if verification_data.get("metadata_standards") is None:
-            unverified.append("metadata_standards")
-        if verification_data.get("citation_format") is None:
-            unverified.append("citation_format")
-        if verification_data.get("archive_access_years") is None:
-            unverified.append("archive_access")
-        if verification_data.get("author_oriented_info") is None:
-            unverified.append("author_oriented_information")
-        if verification_data.get("search_functionality") is None:
-            unverified.append("search_functionality")
-        if verification_data.get("article_licensing") is None:
-            unverified.append("article_licensing")
-        if verification_data.get("custom_cms") is None:
-            unverified.append("custom_cms")
-
-        # Metrics and Indexing
-        if verification_data.get("indexed_in_major_databases") is None:
-            unverified.append("indexing_in_major_databases")
-        if verification_data.get("misleading_metrics_used") is None:
-            unverified.append("misleading_metrics")
-        if verification_data.get("google_scholar_citations") is None:
-            unverified.append("google_scholar_citations")
-        if verification_data.get("h5_index") is None:
-            unverified.append("h5_index")
-
-        # Ethics and Compliance
-        if verification_data.get("research_ethics_policy") is None:
-            unverified.append("research_ethics_policy")
-        if verification_data.get("ai_disclosure") is None:
-            unverified.append("ai_disclosure")
-        if verification_data.get("plagiarism_check") is None:
-            unverified.append("plagiarism_check")
-        if verification_data.get("community_standards") is None:
-            unverified.append("community_standards")
-        if verification_data.get("conflict_of_interest_policy") is None:
-            unverified.append("conflict_of_interest_policy")
+        # Use authoritative Appendix A checklist if present
+        appendix_checks = verification_data.get("appendix_checks") or []
+        for check in appendix_checks:
+            if not check.get("passed"):
+                key = check.get("key")
+                if key:
+                    unverified.append(key)
 
         return unverified
 
