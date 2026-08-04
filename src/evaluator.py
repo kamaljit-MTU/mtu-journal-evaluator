@@ -276,33 +276,96 @@ class MTUJournalEvaluator:
             self.accepted_db.add_accepted(accepted_data)
 
     def _collect_unverified_parameters(self, verification_data: Dict[str, Any]) -> List[str]:
-        """Collect parameters that failed verification or need human review."""
+        """Collect Appendix A sub-criterion parameters that failed verification or need human review."""
         unverified: List[str] = []
 
-        # Check editorial board / ORCID / h-index
-        orcid_data = verification_data.get("orcid_verification", {})
-        if orcid_data.get("needs_human_review") or orcid_data.get("verification_rate", 1) < 1.0:
-            unverified.append("editorial_board_orcid")
-
-        # Check geographic diversity
-        geo_data = verification_data.get("geographic_diversity", {})
-        if geo_data.get("needs_human_review") or geo_data.get("diversity_rating") in ("unknown", "poor"):
-            unverified.append("geographic_diversity")
-
-        # Check journal history
-        history = verification_data.get("journal_history", {})
-        if history.get("needs_human_review") or history.get("status") in ("unknown", "not_found"):
+        # Journal Identification and Authenticity
+        if verification_data.get("issn_match") in (False, None):
+            unverified.append("issn_verification")
+        if verification_data.get("title_unique") in (False, None):
+            unverified.append("title_verification")
+        if verification_data.get("publisher_legitimacy") in (False, None):
+            unverified.append("publisher_legitimacy")
+        if verification_data.get("journal_history_years") is None:
             unverified.append("journal_history")
+        if verification_data.get("publisher_transparency") is None:
+            unverified.append("publisher_transparency")
+        if verification_data.get("doi_valid") is None:
+            unverified.append("doi_verification")
+        if verification_data.get("reputed_publisher") is None:
+            unverified.append("reputed_publisher")
 
-        # Check h-index estimation
-        h_index = verification_data.get("h_index_estimation", {})
-        if h_index.get("estimated", 0) == 0 and h_index.get("total", 0) > 0:
-            unverified.append("h_index_estimation")
+        # Editorial Board and Governance
+        if verification_data.get("affiliations_verified") is None:
+            unverified.append("verified_affiliations")
+        if verification_data.get("geographic_diversity_rating") in ("unknown", None):
+            unverified.append("geographic_diversity")
+        if verification_data.get("editor_h_index") is None:
+            unverified.append("editor_h_index")
+        if verification_data.get("orcid_availability") is None:
+            unverified.append("orcid_availability")
+        if verification_data.get("special_issue_editors") is None:
+            unverified.append("special_issue_editors")
+        if verification_data.get("editorial_activity") is None:
+            unverified.append("editorial_activity")
+        if verification_data.get("editorial_independence") is None:
+            unverified.append("editorial_independence")
 
-        # Check deep search
-        deep_search = verification_data.get("deep_search", {})
-        if deep_search.get("needs_human_review"):
-            unverified.append("deep_search")
+        # Peer Review and Publishing Process
+        if verification_data.get("review_type") is None:
+            unverified.append("review_type")
+        if verification_data.get("reviewer_pool") is None:
+            unverified.append("reviewer_pool")
+        if verification_data.get("review_timeline") is None:
+            unverified.append("review_timeline")
+        if verification_data.get("peer_review_history") is None:
+            unverified.append("peer_review_history")
+        if verification_data.get("acceptance_dates_consistent") is None:
+            unverified.append("acceptance_dates_consistency")
+        if verification_data.get("appeals_process") is None:
+            unverified.append("appeals_process")
+        if verification_data.get("retraction_policy") is None:
+            unverified.append("retraction_policy")
+
+        # Website and Infrastructure
+        if verification_data.get("language_quality") is None:
+            unverified.append("language_quality")
+        if verification_data.get("metadata_standards") is None:
+            unverified.append("metadata_standards")
+        if verification_data.get("citation_format") is None:
+            unverified.append("citation_format")
+        if verification_data.get("archive_access_years") is None:
+            unverified.append("archive_access")
+        if verification_data.get("author_oriented_info") is None:
+            unverified.append("author_oriented_information")
+        if verification_data.get("search_functionality") is None:
+            unverified.append("search_functionality")
+        if verification_data.get("article_licensing") is None:
+            unverified.append("article_licensing")
+        if verification_data.get("custom_cms") is None:
+            unverified.append("custom_cms")
+
+        # Metrics and Indexing
+        if verification_data.get("indexed_in_major_databases") is None:
+            unverified.append("indexing_in_major_databases")
+        if verification_data.get("misleading_metrics_used") is None:
+            unverified.append("misleading_metrics")
+        if verification_data.get("google_scholar_citations") is None:
+            unverified.append("google_scholar_citations")
+        if verification_data.get("h5_index") is None:
+            unverified.append("h5_index")
+
+        # Ethics and Compliance
+        if verification_data.get("research_ethics_policy") is None:
+            unverified.append("research_ethics_policy")
+        if verification_data.get("ai_disclosure") is None:
+            unverified.append("ai_disclosure")
+        if verification_data.get("plagiarism_check") is None:
+            unverified.append("plagiarism_check")
+        if verification_data.get("community_standards") is None:
+            unverified.append("community_standards")
+        if verification_data.get("conflict_of_interest_policy") is None:
+            unverified.append("conflict_of_interest_policy")
 
         return unverified
 
