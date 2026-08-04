@@ -109,25 +109,35 @@ async def admin_blacklists(user: Optional[dict] = Depends(require_admin)):
 
 @admin_router.get("/admin/interventions", response_class=HTMLResponse)
 async def admin_interventions(request: Request, user: Optional[dict] = Depends(get_current_user)):
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    if user.get("role") != "admin":
-        return RedirectResponse(url="/", status_code=303)
+    try:
+        if not user:
+            next_url = str(request.url).replace(str(request.base_url), "/")
+            if next_url.startswith("//"):
+                next_url = "/admin/interventions"
+            return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
+        if user.get("role") != "admin":
+            return RedirectResponse(url="/", status_code=303)
 
-    status_filter = request.query_params.get("status", "pending")
-    if status_filter == "pending":
-        interventions = intervention_queue.get_pending_interventions(limit=100)
-    elif status_filter == "all":
-        interventions = intervention_queue.get_pending_interventions(limit=500)
-    else:
-        interventions = intervention_queue.get_pending_interventions(limit=100)
+        status_filter = request.query_params.get("status", "pending")
+        if status_filter == "pending":
+            interventions = intervention_queue.get_pending_interventions(limit=100)
+        elif status_filter == "all":
+            interventions = intervention_queue.get_pending_interventions(limit=500)
+        else:
+            interventions = intervention_queue.get_pending_interventions(limit=100)
 
-    return templates.TemplateResponse("admin/interventions.html", {
-        "request": request,
-        "user": user,
-        "interventions": interventions,
-        "filter": status_filter,
-    })
+        print(f"[ADMIN] Rendering interventions page with {len(interventions)} items, filter={status_filter}, user={user.get('username')}")
+        return templates.TemplateResponse("admin/interventions.html", {
+            "request": request,
+            "user": user,
+            "interventions": interventions,
+            "filter": status_filter,
+        })
+    except Exception as e:
+        print(f"[ADMIN] Error in interventions page: {e}")
+        import traceback
+        traceback.print_exc()
+        return HTMLResponse(f"<h1>Error loading interventions</h1><pre>{e}</pre>", status_code=500)
 
 
 @admin_router.post("/admin/interventions/{intervention_id}/assign")
