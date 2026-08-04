@@ -1,7 +1,7 @@
 """
 FastAPI web interface for MTU Journal Evaluator - v2 with auth and admin routes.
 """
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +23,7 @@ from src.batch_import import BatchImporter
 from src.human_intervention import HumanInterventionQueue
 from src.accepted_journals_db import AcceptedJournalDatabase
 from src.rejected_journals_db import RejectedJournalDatabase
-from src.email_notifier import EmailNotifier
+from src.telegram_notifier import TelegramNotifier
 
 app = FastAPI(title="MTU Journal Evaluator")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -250,18 +250,20 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
+    chat_id = settings.TELEGRAM_CHAT_ID or reviewer_email or settings.COMMITTEE_EMAIL
+    print(f"[INTERVENTION] Using chat_id={chat_id} for notification")
     try:
-        sent = EmailNotifier.send_intervention_notification(
-            to_email=reviewer_email or settings.COMMITTEE_EMAIL,
+        sent = TelegramNotifier.send_intervention_notification(
+            chat_id=chat_id,
             journal_name=journal_name,
             parameter_name=parameter_name,
             parameter_value="",
             eval_id=eval_id,
             issue_description=issue_description
         )
-        print(f"[INTERVENTION] Email notification result: {sent}")
+        print(f"[INTERVENTION] Notification result: {sent}")
     except Exception as e:
-        print(f"[INTERVENTION] Email notification raised: {e}")
+        print(f"[INTERVENTION] Notification raised: {e}")
     return RedirectResponse(url="/?review=submitted", status_code=303)
 
 
@@ -278,7 +280,8 @@ async def submit_unverified_parameter(
 ):
     print(f"[INTERVENTION] Received unverified parameter submission for journal={journal_name}, param={parameter_name}, value={parameter_value}, email={reviewer_email}")
     description = issue_description or f"User provided value for unverified parameter: {parameter_name}"
-    committee_email = reviewer_email or settings.COMMITTEE_EMAIL
+    chat_id = settings.TELEGRAM_CHAT_ID or reviewer_email or settings.COMMITTEE_EMAIL
+    print(f"[INTERVENTION] Using chat_id={chat_id} for notification")
     intervention_queue.create_intervention(
         journal_name=journal_name,
         parameter_name=parameter_name,
@@ -288,18 +291,18 @@ async def submit_unverified_parameter(
         committee_member_email=reviewer_email,
         parameter_value=parameter_value,
         auto_verification_failure_reason="User-supplied unverified parameter value",
-        email_recipient=committee_email,
+        email_recipient=chat_id,
     )
     try:
-        sent = EmailNotifier.send_intervention_notification(
-            to_email=committee_email,
+        sent = TelegramNotifier.send_intervention_notification(
+            chat_id=chat_id,
             journal_name=journal_name,
             parameter_name=parameter_name,
             parameter_value=parameter_value,
             eval_id=eval_id,
             issue_description=description
         )
-        print(f"[INTERVENTION] Email notification result: {sent}")
+        print(f"[INTERVENTION] Notification result: {sent}")
     except Exception as e:
-        print(f"[INTERVENTION] Email notification raised: {e}")
+        print(f"[INTERVENTION] Notification raised: {e}")
     return RedirectResponse(url=f"/?review=submitted&parameter={parameter_name}", status_code=303)
