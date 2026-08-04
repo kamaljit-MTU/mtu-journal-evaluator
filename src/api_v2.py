@@ -232,7 +232,6 @@ async def request_manual_review(
 @app.post("/interventions/request")
 async def public_request_manual_review(
     request: Request,
-    background_tasks: BackgroundTasks,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
@@ -270,7 +269,6 @@ async def public_request_manual_review(
 @app.post("/interventions/submit-unverified")
 async def submit_unverified_parameter(
     request: Request,
-    background_tasks: BackgroundTasks,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
