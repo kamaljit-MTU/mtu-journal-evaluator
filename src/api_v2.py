@@ -150,17 +150,17 @@ async def appeal(eval_id: int, status: str = Form(...), notes: str = Form(...), 
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request, error: str = ""):
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+async def login_form(request: Request, error: str = "", next: str = "/"):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error, "next": next})
 
 
 @app.post("/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/")):
     user = authenticate_user(username, password)
     if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "next": next})
     token = create_access_token({"sub": user["username"], "role": user["role"]})
-    resp = RedirectResponse(url="/", status_code=303)
+    resp = RedirectResponse(url=next or "/", status_code=303)
     resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=480*60)
     return resp
 
