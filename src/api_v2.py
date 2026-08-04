@@ -231,8 +231,8 @@ async def request_manual_review(
 
 @app.post("/interventions/request")
 async def public_request_manual_review(
-    background_tasks: BackgroundTasks,
     request: Request,
+    background_tasks: BackgroundTasks,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
@@ -240,6 +240,7 @@ async def public_request_manual_review(
     severity: str = Form("medium"),
     reviewer_email: str = Form(...),
 ):
+    print(f"[INTERVENTION] Received manual review request for journal={journal_name}, param={parameter_name}, email={reviewer_email}")
     intervention_queue.create_intervention(
         journal_name=journal_name,
         parameter_name=parameter_name,
@@ -249,22 +250,25 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
-    background_tasks.add_task(
-        EmailNotifier.send_intervention_notification,
-        to_email=reviewer_email or settings.COMMITTEE_EMAIL,
-        journal_name=journal_name,
-        parameter_name=parameter_name,
-        parameter_value="",
-        eval_id=eval_id,
-        issue_description=issue_description
-    )
+    try:
+        sent = EmailNotifier.send_intervention_notification(
+            to_email=reviewer_email or settings.COMMITTEE_EMAIL,
+            journal_name=journal_name,
+            parameter_name=parameter_name,
+            parameter_value="",
+            eval_id=eval_id,
+            issue_description=issue_description
+        )
+        print(f"[INTERVENTION] Email notification result: {sent}")
+    except Exception as e:
+        print(f"[INTERVENTION] Email notification raised: {e}")
     return RedirectResponse(url="/?review=submitted", status_code=303)
 
 
 @app.post("/interventions/submit-unverified")
 async def submit_unverified_parameter(
-    background_tasks: BackgroundTasks,
     request: Request,
+    background_tasks: BackgroundTasks,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
@@ -272,6 +276,7 @@ async def submit_unverified_parameter(
     reviewer_email: str = Form(...),
     issue_description: Optional[str] = Form(None),
 ):
+    print(f"[INTERVENTION] Received unverified parameter submission for journal={journal_name}, param={parameter_name}, value={parameter_value}, email={reviewer_email}")
     description = issue_description or f"User provided value for unverified parameter: {parameter_name}"
     committee_email = reviewer_email or settings.COMMITTEE_EMAIL
     intervention_queue.create_intervention(
@@ -285,13 +290,16 @@ async def submit_unverified_parameter(
         auto_verification_failure_reason="User-supplied unverified parameter value",
         email_recipient=committee_email,
     )
-    background_tasks.add_task(
-        EmailNotifier.send_intervention_notification,
-        to_email=committee_email,
-        journal_name=journal_name,
-        parameter_name=parameter_name,
-        parameter_value=parameter_value,
-        eval_id=eval_id,
-        issue_description=description
-    )
+    try:
+        sent = EmailNotifier.send_intervention_notification(
+            to_email=committee_email,
+            journal_name=journal_name,
+            parameter_name=parameter_name,
+            parameter_value=parameter_value,
+            eval_id=eval_id,
+            issue_description=description
+        )
+        print(f"[INTERVENTION] Email notification result: {sent}")
+    except Exception as e:
+        print(f"[INTERVENTION] Email notification raised: {e}")
     return RedirectResponse(url=f"/?review=submitted&parameter={parameter_name}", status_code=303)
