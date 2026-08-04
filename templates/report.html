@@ -369,44 +369,14 @@
                     </select><br>
                     <label><strong>Your Email (for committee correspondence):</strong></label><br>
                     <input type="email" name="reviewer_email" required placeholder="reviewer@example.com" style="width: 60%; padding: 0.4em; margin: 0.5em 0;"><br>
-                    <label><strong>Notes (relative to Appendix 1 of MTU Guidelines):</strong></label><br>
-                    <textarea name="issue_description" rows="3" required placeholder="Describe the verified value or how it relates to the Appendix 1 table..." style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
+                    <label><strong>Notes (relative to Appendix A start page 8 of MTU Notification 4):</strong></label><br>
+                    <textarea name="issue_description" rows="3" required placeholder="Describe the verified value or how it relates to the Appendix A table..." style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
                     <button type="submit" class="btn btn-warning">Submit for Committee Review</button>
                 </form>
                 {% endfor %}
             {% else %}
                 <p class="pass">All major parameters were verified automatically. No unverified items require user input at this time.</p>
             {% endif %}
-        </div>
-
-        <div class="section">
-            <h3>Additional Manual Review</h3>
-            <p>If you need to request review for another issue not listed above:</p>
-            <form method="POST" action="/interventions/request" style="margin-top: 1em;">
-                <input type="hidden" name="eval_id" value="{{ eval_id }}">
-                <input type="hidden" name="journal_name" value="{{ result.journal_name }}">
-                <label><strong>Parameter Needing Review:</strong></label><br>
-                <select name="parameter_name" required style="padding: 0.4em; margin: 0.5em 0;">
-                    <option value="orcid_verification">ORCID Verification</option>
-                    <option value="h_index">h-index Verification</option>
-                    <option value="geographic_diversity">Geographic Diversity</option>
-                    <option value="journal_history">Journal History</option>
-                    <option value="reference_lists">Reference List Match</option>
-                    <option value="other">Other</option>
-                </select><br>
-                <label><strong>Your Email (for committee correspondence):</strong></label><br>
-                <input type="email" name="reviewer_email" required placeholder="reviewer@example.com" style="width: 60%; padding: 0.4em; margin: 0.5em 0;"><br>
-                <label><strong>Issue Description:</strong></label><br>
-                <textarea name="issue_description" rows="3" required style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
-                <label><strong>Severity:</strong></label><br>
-                <select name="severity" style="padding: 0.4em; margin: 0.5em 0;">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                </select><br>
-                <button type="submit" class="btn btn-warning">Request Manual Review</button>
-            </form>
         </div>
 
         {% if crawl_data and not crawl_data.error %}

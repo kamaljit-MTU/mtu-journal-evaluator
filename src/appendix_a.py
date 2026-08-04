@@ -99,7 +99,7 @@ class AppendixAChecker:
         if not doi_prefix:
             return True, "Not applicable = 4"
         text = self._fetch_text(f"https://doi.org/api/handles/{doi_prefix}")
-        if text and "200" in text[:20]:
+        if text and '"responseCode":1' in text[:20]:
             return True, "Valid DOI = 4"
         return False, "Fake = 0"
 
