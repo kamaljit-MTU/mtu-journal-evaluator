@@ -149,12 +149,12 @@ async def appeal(eval_id: int, status: str = Form(...), notes: str = Form(...), 
     return {"success": True, "eval_id": eval_id, "appeal_status": status}
 
 
-@admin_router.get("/login", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse)
 async def admin_login_form(request: Request, error: str = "", next: str = "/admin/interventions"):
     return templates.TemplateResponse("login.html", {"request": request, "error": error, "next": next})
 
 
-@admin_router.post("/login", response_class=HTMLResponse)
+@app.post("/login", response_class=HTMLResponse)
 async def admin_login(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/admin/interventions")):
     user = authenticate_user(username, password)
     if not user:
