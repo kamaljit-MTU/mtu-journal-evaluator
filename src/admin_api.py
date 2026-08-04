@@ -11,7 +11,7 @@ from datetime import datetime
 
 from src.models import JournalInput, VerdictStatus
 from src.evaluator import MTUJournalEvaluator
-from src.database import EvaluationDatabase
+from src.database import EvaluationDatabase, Evaluation, HumanIntervention
 from src.auth import require_admin, get_current_user
 from src.blacklist import BlacklistChecker
 from src.blacklist_feeds import BlacklistAggregator
@@ -149,7 +149,65 @@ async def resolve_intervention(
     resolution_value: str = Form(""),
 ):
     intervention_queue.resolve_intervention(intervention_id, resolution, resolution_value, "admin")
-    return RedirectResponse(url="/admin/interventions", status_code=303)
+
+    # Apply the committee's decision back to the journal evaluation.
+    session = db.get_session()
+    try:
+        intervention = session.query(HumanIntervention).filter(
+            HumanIntervention.id == intervention_id
+        ).first()
+        if not intervention or not intervention.evaluation_id:
+            return RedirectResponse(url="/admin/interventions?status=resolved", status_code=303)
+
+        evaluation = session.query(Evaluation).filter(
+            Evaluation.id == intervention.evaluation_id
+        ).first()
+        if not evaluation or not evaluation.raw_data:
+            return RedirectResponse(url="/admin/interventions?status=resolved", status_code=303)
+
+        import json
+        journal_data = json.loads(evaluation.raw_data)
+        parameter_map = {
+            "issn_print": "issn_print",
+            "issn_online": "issn_online",
+            "doi_prefix": "doi_prefix",
+            "publisher_name": "publisher_name",
+            "publisher_url": "publisher_url",
+            "publisher_address": "publisher_address",
+            "editorial_board_url": "editorial_board_url",
+            "submission_portal_url": "submission_portal_url",
+            "ethics_policy_url": "ethics_policy_url",
+            "open_access": "open_access",
+            "submission_email_only": "submission_email_only",
+            "claimed_indexes": "claimed_indexes",
+            "metric_claims": "metric_claims",
+            "rapid_publication_claim": "rapid_publication_claim",
+            "lock_pdfs": "lock_pdfs",
+        }
+
+        param_key = parameter_map.get(intervention.parameter_name)
+        if param_key:
+            if param_key in ("open_access", "submission_email_only", "rapid_publication_claim", "lock_pdfs"):
+                journal_data[param_key] = resolution_value.lower() in ("true", "1", "yes")
+            elif param_key == "claimed_indexes":
+                journal_data[param_key] = [x.strip() for x in resolution_value.split(",") if x.strip()]
+            elif param_key == "metric_claims":
+                journal_data[param_key] = [x.strip() for x in resolution_value.split(",") if x.strip()]
+            else:
+                journal_data[param_key] = resolution_value
+
+            journal = JournalInput(**journal_data)
+            new_result = evaluator.evaluate(journal, save_accepted=False)
+            new_result["id"] = evaluation.id
+            db.save_evaluation(new_result, evaluated_by="committee")
+    except Exception as e:
+        print(f"[ADMIN] Resolution re-evaluation error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        session.close()
+
+    return RedirectResponse(url="/admin/interventions?status=resolved", status_code=303)
 
 
 @admin_router.post("/admin/interventions/{intervention_id}/escalate")
