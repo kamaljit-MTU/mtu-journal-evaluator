@@ -1,7 +1,7 @@
 """
 FastAPI web interface for MTU Journal Evaluator - v2 with auth and admin routes.
 """
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -231,6 +231,8 @@ async def request_manual_review(
 
 @app.post("/interventions/request")
 async def public_request_manual_review(
+    background_tasks: BackgroundTasks,
+    request: Request,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
@@ -247,7 +249,8 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
-    EmailNotifier.send_intervention_notification(
+    background_tasks.add_task(
+        EmailNotifier.send_intervention_notification,
         to_email=reviewer_email or settings.COMMITTEE_EMAIL,
         journal_name=journal_name,
         parameter_name=parameter_name,
@@ -260,6 +263,8 @@ async def public_request_manual_review(
 
 @app.post("/interventions/submit-unverified")
 async def submit_unverified_parameter(
+    background_tasks: BackgroundTasks,
+    request: Request,
     eval_id: int = Form(...),
     journal_name: str = Form(...),
     parameter_name: str = Form(...),
@@ -280,7 +285,8 @@ async def submit_unverified_parameter(
         auto_verification_failure_reason="User-supplied unverified parameter value",
         email_recipient=committee_email,
     )
-    EmailNotifier.send_intervention_notification(
+    background_tasks.add_task(
+        EmailNotifier.send_intervention_notification,
         to_email=committee_email,
         journal_name=journal_name,
         parameter_name=parameter_name,
