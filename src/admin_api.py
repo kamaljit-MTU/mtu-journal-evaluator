@@ -137,7 +137,6 @@ async def assign_intervention(
     intervention_id: int,
     committee_email: str = Form(...),
     assigned_to: str = Form(...),
-    user: Optional[dict] = Depends(require_admin),
 ):
     intervention_queue.assign_to_committee(intervention_id, committee_email, assigned_to)
     return RedirectResponse(url="/admin/interventions", status_code=303)
@@ -148,16 +147,14 @@ async def resolve_intervention(
     intervention_id: int,
     resolution: str = Form(...),
     resolution_value: str = Form(""),
-    user: Optional[dict] = Depends(require_admin),
 ):
-    intervention_queue.resolve_intervention(intervention_id, resolution, resolution_value, user.get("username", "admin"))
+    intervention_queue.resolve_intervention(intervention_id, resolution, resolution_value, "admin")
     return RedirectResponse(url="/admin/interventions", status_code=303)
 
 
 @admin_router.post("/admin/interventions/{intervention_id}/escalate")
 async def escalate_intervention(
     intervention_id: int,
-    user: Optional[dict] = Depends(require_admin),
 ):
     intervention_queue.escalate_intervention(intervention_id)
     return RedirectResponse(url="/admin/interventions", status_code=303)
