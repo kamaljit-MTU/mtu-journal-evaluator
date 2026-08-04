@@ -8,7 +8,7 @@ from .models import EvaluationResult, RejectionTriggerResult, DomainScore
 
 class ReportGenerator:
     def generate_text_report(self, result: EvaluationResult) -> str:
-        lines = []
+        lines: List[str] = []
         lines.append("=" * 70)
         lines.append("MTU JOURNAL EVALUATION REPORT")
         lines.append("=" * 70)
@@ -52,6 +52,56 @@ class ReportGenerator:
                 lines.append(f"  Score: {domain.earned_points}/{domain.max_points} [{bar}] {pct:.0f}%")
                 for sc in domain.sub_criteria:
                     lines.append(f"    • {sc['criterion']}: {sc['earned']}/{sc['max']} — {sc['detail']}")
+            lines.append("")
+
+        # Firecrawl verification results
+        firecrawl_data = (getattr(result, "raw_data", {}) or {}).get("verification_data", {}).get("firecrawl")
+        if firecrawl_data:
+            lines.append("-" * 70)
+            lines.append("FIRECRAWL VERIFICATION")
+            lines.append("-" * 70)
+
+            eic = firecrawl_data.get("eic_orcid") or {}
+            if eic:
+                lines.append("  Editor-in-Chief")
+                lines.append(f"    Source:         {eic.get('source_url')}")
+                lines.append(f"    Name found:     {'Yes' if eic.get('found') else 'No'}")
+                if eic.get("editor_name"):
+                    lines.append(f"    Name:           {eic['editor_name']}")
+                lines.append(f"    ORCID found:    {'Yes' if eic.get('orcid_id') else 'No'}")
+                if eic.get("orcid_id"):
+                    lines.append(f"    ORCID ID:       {eic['orcid_id']}")
+                lines.append(f"    ORCID verified: {'Yes' if eic.get('orcid_verified') else 'No'}")
+                if eic.get("error"):
+                    lines.append(f"    Error:          {eic['error']}")
+                lines.append("")
+
+            dois = firecrawl_data.get("dois") or {}
+            if dois is not None:
+                lines.append("  DOI Attribution")
+                lines.append(f"    Source:            {dois.get('source_url')}")
+                lines.append(f"    DOIs found:        {dois.get('count', 0)}")
+                if dois.get("dois_found"):
+                    for d in dois["dois_found"][:10]:
+                        lines.append(f"      - {d}")
+                lines.append(f"    Valid format:      {'Yes' if dois.get('valid_format') else 'No'}")
+                if dois.get("error"):
+                    lines.append(f"    Error:             {dois['error']}")
+                lines.append("")
+
+        # Appendix A checks
+        if getattr(result, "appendix_checks", None):
+            passed_count = sum(1 for c in result.appendix_checks if c.get("passed"))
+            total_count = len(result.appendix_checks)
+            lines.append("-" * 70)
+            lines.append("APPENDIX A CHECKS")
+            lines.append("-" * 70)
+            lines.append(f"  Passed: {passed_count}/{total_count}")
+            for c in result.appendix_checks:
+                status = "PASS" if c.get("passed") else "FAIL"
+                lines.append(f"  [{status}] {c.get('label')}: {c.get('selected_indicator')}")
+                if c.get("verifiable_sources"):
+                    lines.append(f"           Source: {c['verifiable_sources']}")
             lines.append("")
 
         # Summary

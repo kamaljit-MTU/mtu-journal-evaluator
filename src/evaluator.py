@@ -16,6 +16,7 @@ from .accepted_journals_db import AcceptedJournalDatabase
 from .human_intervention import HumanInterventionQueue
 from .reference_lists import ReferenceListChecker
 from .appendix_a import AppendixAChecker
+from .firecrawl_verifier import FirecrawlVerifier
 
 
 class MTUJournalEvaluator:
@@ -227,6 +228,20 @@ class MTUJournalEvaluator:
             journal.publisher_name
         )
         verification_data["reference_lists"] = ref_check
+
+        # 5. Firecrawl-backed page verification
+        firecrawl = FirecrawlVerifier()
+        page_url = journal.url or (journal.editorial_board_url or journal.aims_scope_url or journal.submission_portal_url)
+        if page_url:
+            eic_orcid = firecrawl.verify_eic_orcid(page_url)
+            dois = firecrawl.verify_doi_attributions(
+                page_url,
+                doi_prefix=journal.doi_prefix or None,
+            )
+            verification_data["firecrawl"] = {
+                "eic_orcid": eic_orcid,
+                "dois": dois,
+            }
 
         return verification_data
 
