@@ -26,12 +26,9 @@ class Settings:
     # Committee email for manual review correspondence
     COMMITTEE_EMAIL: str = os.getenv("COMMITTEE_EMAIL", "mtujournal@gmail.com")
 
-    # Email / SMTP configuration
-    SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "0"))
-    SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
-    SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
-    FROM_EMAIL: Optional[str] = os.getenv("FROM_EMAIL")
+    # Telegram notification config
+    TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_CHAT_ID")
 
     # Free database providers often use postgres:// instead of postgresql://
     @property

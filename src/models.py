@@ -42,6 +42,7 @@ class EvaluationResult:
     recommendations: List[str]
     raw_data: Dict[str, Any] = field(default_factory=dict)
     unverified_parameters: List[str] = field(default_factory=list)
+    appendix_checks: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

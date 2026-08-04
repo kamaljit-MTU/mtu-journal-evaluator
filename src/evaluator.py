@@ -15,6 +15,7 @@ from .rejected_journals_db import RejectedJournalDatabase
 from .accepted_journals_db import AcceptedJournalDatabase
 from .human_intervention import HumanInterventionQueue
 from .reference_lists import ReferenceListChecker
+from .appendix_a import AppendixAChecker
 
 
 class MTUJournalEvaluator:
@@ -97,6 +98,15 @@ class MTUJournalEvaluator:
             domain_scores=domain_scores,
             summary=summary,
             recommendations=recommendations,
+            appendix_checks=AppendixAChecker({
+                "issn_print": journal.issn_print,
+                "issn_online": journal.issn_online,
+                "journal_name": journal.name,
+                "publisher_name": journal.publisher_name,
+                "publisher_address": journal.publisher_address,
+                "doi_prefix": journal.doi_prefix,
+                "journal_history_years": verification_data.get("journal_history", {}).get("years"),
+            }).check_all(),
             unverified_parameters=self._collect_unverified_parameters(verification_data),
             raw_data={
                 "issn_print": journal.issn_print,
