@@ -26,6 +26,13 @@ class Settings:
     # Committee email for manual review correspondence
     COMMITTEE_EMAIL: str = os.getenv("COMMITTEE_EMAIL", "kamaljit_rk@mtu.ac.in")
 
+    # Email / SMTP configuration
+    SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "0"))
+    SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
+    SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
+    FROM_EMAIL: Optional[str] = os.getenv("FROM_EMAIL")
+
     # Free database providers often use postgres:// instead of postgresql://
     @property
     def database_url(self) -> Optional[str]:
