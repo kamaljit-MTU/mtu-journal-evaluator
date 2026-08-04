@@ -158,12 +158,50 @@
                     <input type="hidden" name="eval_id" value="{{ eval_id }}">
                     <input type="hidden" name="journal_name" value="{{ result.journal_name }}">
                     <input type="hidden" name="parameter_name" value="{{ param }}">
-                    <label><strong>{{ param | replace('_', ' ') | title }} Value:</strong></label><br>
-                    <input type="text" name="parameter_value" required placeholder="Enter verified value" style="width: 70%; padding: 0.4em; margin: 0.5em 0;"><br>
+                    <label><strong>{{ param | replace('_', ' ') | title }}:</strong></label><br>
+                    <select name="parameter_value" required style="padding: 0.4em; margin: 0.5em 0; width: 70%;">
+                        {% if param == "editorial_board_orcid" %}
+                            <option value="">-- Select verification status --</option>
+                            <option value="verified">Verified</option>
+                            <option value="partial_verification">Partial Verification</option>
+                            <option value="not_verified">Not Verified</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% elif param == "geographic_diversity" %}
+                            <option value="">-- Select diversity rating --</option>
+                            <option value="excellent">Excellent</option>
+                            <option value="good">Good</option>
+                            <option value="fair">Fair</option>
+                            <option value="poor">Poor</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% elif param == "journal_history" %}
+                            <option value="">-- Select history status --</option>
+                            <option value="established">Established</option>
+                            <option value="growing">Growing</option>
+                            <option value="new">New Journal</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% elif param == "h_index_estimation" %}
+                            <option value="">-- Select h-index range --</option>
+                            <option value="high">High (&gt;20)</option>
+                            <option value="medium">Medium (10-20)</option>
+                            <option value="low">Low (&lt;10)</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% elif param == "deep_search" %}
+                            <option value="">-- Select deep search result --</option>
+                            <option value="clean">Clean</option>
+                            <option value="flagged">Flagged</option>
+                            <option value="review_needed">Review Needed</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% else %}
+                            <option value="">-- Select value --</option>
+                            <option value="verified">Verified</option>
+                            <option value="unverified">Unverified</option>
+                            <option value="other">Other (specify in notes)</option>
+                        {% endif %}
+                    </select><br>
                     <label><strong>Your Email (for committee correspondence):</strong></label><br>
                     <input type="email" name="reviewer_email" required placeholder="reviewer@example.com" style="width: 60%; padding: 0.4em; margin: 0.5em 0;"><br>
-                    <label><strong>Notes:</strong></label><br>
-                    <textarea name="issue_description" rows="2" style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
+                    <label><strong>Notes (relative to Appendix 1 of MTU Guidelines):</strong></label><br>
+                    <textarea name="issue_description" rows="3" required placeholder="Describe the verified value or how it relates to the Appendix 1 table..." style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
                     <button type="submit" class="btn btn-warning">Submit for Committee Review</button>
                 </form>
                 {% endfor %}
