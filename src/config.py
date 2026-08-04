@@ -24,7 +24,7 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
     # Committee email for manual review correspondence
-    COMMITTEE_EMAIL: str = os.getenv("COMMITTEE_EMAIL", "kamaljit_rk@mtu.ac.in")
+    COMMITTEE_EMAIL: str = os.getenv("COMMITTEE_EMAIL", "mtujournal@gmail.com")
 
     # Email / SMTP configuration
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
