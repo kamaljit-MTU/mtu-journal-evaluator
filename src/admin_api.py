@@ -114,8 +114,10 @@ async def admin_interventions(request: Request, user: Optional[dict] = Depends(g
             next_url = str(request.url).replace(str(request.base_url), "/")
             if next_url.startswith("//"):
                 next_url = "/admin/interventions"
-            return RedirectResponse(url=f"/admin/login?next={next_url}", status_code=303)
+            print(f"[ADMIN] Unauthenticated access to /admin/interventions, redirecting to /login?next={next_url}")
+            return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
         if user.get("role") != "admin":
+            print(f"[ADMIN] Non-admin access to /admin/interventions user={user.get('username')}")
             return RedirectResponse(url="/", status_code=303)
 
         status_filter = request.query_params.get("status", "pending")
