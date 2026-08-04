@@ -22,7 +22,9 @@ class HumanInterventionQueue(EvaluationDatabase):
                            rejection_id: Optional[int] = None,
                            acceptance_id: Optional[int] = None,
                            auto_verification_failure_reason: Optional[str] = None,
-                           committee_member_email: Optional[str] = None) -> int:
+                           committee_member_email: Optional[str] = None,
+                           parameter_value: Optional[str] = None,
+                           email_recipient: Optional[str] = None) -> int:
         session = self.get_session()
         try:
             intervention = HumanIntervention(
@@ -31,12 +33,14 @@ class HumanInterventionQueue(EvaluationDatabase):
                 rejection_id=rejection_id,
                 acceptance_id=acceptance_id,
                 parameter_name=parameter_name,
+                parameter_value=parameter_value,
                 issue_description=issue_description,
                 severity=severity,
                 auto_verification_attempted=True,
                 auto_verification_failure_reason=auto_verification_failure_reason,
                 status="pending",
                 committee_member_email=committee_member_email,
+                email_recipient=email_recipient,
             )
             session.add(intervention)
             session.commit()

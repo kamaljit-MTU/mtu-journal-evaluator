@@ -41,6 +41,7 @@ class EvaluationResult:
     summary: str
     recommendations: List[str]
     raw_data: Dict[str, Any] = field(default_factory=dict)
+    unverified_parameters: List[str] = field(default_factory=list)
 
 
 @dataclass

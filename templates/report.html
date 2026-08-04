@@ -150,8 +150,31 @@
         {% endif %}
 
         <div class="section">
-            <h3>Manual Review & Committee Actions</h3>
-            <p>If this evaluation requires human intervention or committee review, use the options below:</p>
+            <h3>Unverified Parameters</h3>
+            {% if result.unverified_parameters %}
+                <p>The following parameters could not be automatically verified. If you have verified values, submit them below for committee review.</p>
+                {% for param in result.unverified_parameters %}
+                <form method="POST" action="/interventions/submit-unverified" style="margin-top: 0.8em; border: 1px solid #ddd; padding: 1em; border-radius: 6px;">
+                    <input type="hidden" name="eval_id" value="{{ eval_id }}">
+                    <input type="hidden" name="journal_name" value="{{ result.journal_name }}">
+                    <input type="hidden" name="parameter_name" value="{{ param }}">
+                    <label><strong>{{ param | replace('_', ' ') | title }} Value:</strong></label><br>
+                    <input type="text" name="parameter_value" required placeholder="Enter verified value" style="width: 70%; padding: 0.4em; margin: 0.5em 0;"><br>
+                    <label><strong>Your Email (for committee correspondence):</strong></label><br>
+                    <input type="email" name="reviewer_email" required placeholder="reviewer@example.com" style="width: 60%; padding: 0.4em; margin: 0.5em 0;"><br>
+                    <label><strong>Notes:</strong></label><br>
+                    <textarea name="issue_description" rows="2" style="width: 100%; padding: 0.4em; margin: 0.5em 0;"></textarea><br>
+                    <button type="submit" class="btn btn-warning">Submit for Committee Review</button>
+                </form>
+                {% endfor %}
+            {% else %}
+                <p class="pass">All major parameters were verified automatically. No unverified items require user input at this time.</p>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h3>Additional Manual Review</h3>
+            <p>If you need to request review for another issue not listed above:</p>
             <form method="POST" action="/interventions/request" style="margin-top: 1em;">
                 <input type="hidden" name="eval_id" value="{{ eval_id }}">
                 <input type="hidden" name="journal_name" value="{{ result.journal_name }}">
@@ -177,7 +200,6 @@
                 </select><br>
                 <button type="submit" class="btn btn-warning">Request Manual Review</button>
             </form>
-            <p style="margin-top: 1em;"><a href="/admin/interventions" class="btn btn-primary">View All Interventions</a></p>
         </div>
 
         {% if crawl_data and not crawl_data.error %}

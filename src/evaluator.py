@@ -97,6 +97,7 @@ class MTUJournalEvaluator:
             domain_scores=domain_scores,
             summary=summary,
             recommendations=recommendations,
+            unverified_parameters=self._collect_unverified_parameters(verification_data),
             raw_data={
                 "issn_print": journal.issn_print,
                 "issn_online": journal.issn_online,
@@ -273,6 +274,37 @@ class MTUJournalEvaluator:
                 "raw_data": result.raw_data,
             }
             self.accepted_db.add_accepted(accepted_data)
+
+    def _collect_unverified_parameters(self, verification_data: Dict[str, Any]) -> List[str]:
+        """Collect parameters that failed verification or need human review."""
+        unverified: List[str] = []
+
+        # Check editorial board / ORCID / h-index
+        orcid_data = verification_data.get("orcid_verification", {})
+        if orcid_data.get("needs_human_review") or orcid_data.get("verification_rate", 1) < 1.0:
+            unverified.append("editorial_board_orcid")
+
+        # Check geographic diversity
+        geo_data = verification_data.get("geographic_diversity", {})
+        if geo_data.get("needs_human_review") or geo_data.get("diversity_rating") in ("unknown", "poor"):
+            unverified.append("geographic_diversity")
+
+        # Check journal history
+        history = verification_data.get("journal_history", {})
+        if history.get("needs_human_review") or history.get("status") in ("unknown", "not_found"):
+            unverified.append("journal_history")
+
+        # Check h-index estimation
+        h_index = verification_data.get("h_index_estimation", {})
+        if h_index.get("estimated", 0) == 0 and h_index.get("total", 0) > 0:
+            unverified.append("h_index_estimation")
+
+        # Check deep search
+        deep_search = verification_data.get("deep_search", {})
+        if deep_search.get("needs_human_review"):
+            unverified.append("deep_search")
+
+        return unverified
 
     def evaluate_and_report(self, journal: JournalInput, fmt: str = "text", save_accepted: bool = True) -> str:
         result = self.evaluate(journal, save_accepted=save_accepted)

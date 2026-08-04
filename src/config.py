@@ -23,6 +23,9 @@ class Settings:
     APP_VERSION: str = "1.1.0"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
+    # Committee email for manual review correspondence
+    COMMITTEE_EMAIL: str = os.getenv("COMMITTEE_EMAIL", "kamaljit_rk@mtu.ac.in")
+
     # Free database providers often use postgres:// instead of postgresql://
     @property
     def database_url(self) -> Optional[str]:

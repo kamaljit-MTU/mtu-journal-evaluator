@@ -10,6 +10,7 @@ from typing import Optional
 import json
 import io
 
+from src.config import settings
 from src.models import JournalInput
 from src.evaluator import MTUJournalEvaluator
 from src.blacklist import BlacklistChecker
@@ -22,6 +23,7 @@ from src.batch_import import BatchImporter
 from src.human_intervention import HumanInterventionQueue
 from src.accepted_journals_db import AcceptedJournalDatabase
 from src.rejected_journals_db import RejectedJournalDatabase
+from src.email_notifier import EmailNotifier
 
 app = FastAPI(title="MTU Journal Evaluator")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -245,4 +247,45 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
+    EmailNotifier.send_intervention_notification(
+        to_email=reviewer_email or settings.COMMITTEE_EMAIL,
+        journal_name=journal_name,
+        parameter_name=parameter_name,
+        parameter_value="",
+        eval_id=eval_id,
+        issue_description=issue_description
+    )
     return RedirectResponse(url="/?review=submitted", status_code=303)
+
+
+@app.post("/interventions/submit-unverified")
+async def submit_unverified_parameter(
+    eval_id: int = Form(...),
+    journal_name: str = Form(...),
+    parameter_name: str = Form(...),
+    parameter_value: str = Form(...),
+    reviewer_email: str = Form(...),
+    issue_description: Optional[str] = Form(None),
+):
+    description = issue_description or f"User provided value for unverified parameter: {parameter_name}"
+    committee_email = reviewer_email or settings.COMMITTEE_EMAIL
+    intervention_queue.create_intervention(
+        journal_name=journal_name,
+        parameter_name=parameter_name,
+        issue_description=description,
+        severity="medium",
+        evaluation_id=eval_id,
+        committee_member_email=reviewer_email,
+        parameter_value=parameter_value,
+        auto_verification_failure_reason="User-supplied unverified parameter value",
+        email_recipient=committee_email,
+    )
+    EmailNotifier.send_intervention_notification(
+        to_email=committee_email,
+        journal_name=journal_name,
+        parameter_name=parameter_name,
+        parameter_value=parameter_value,
+        eval_id=eval_id,
+        issue_description=description
+    )
+    return RedirectResponse(url=f"/?review=submitted&parameter={parameter_name}", status_code=303)
