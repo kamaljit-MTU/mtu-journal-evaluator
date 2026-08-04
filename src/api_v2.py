@@ -149,18 +149,21 @@ async def appeal(eval_id: int, status: str = Form(...), notes: str = Form(...), 
     return {"success": True, "eval_id": eval_id, "appeal_status": status}
 
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request, error: str = "", next: str = "/"):
+@admin_router.get("/login", response_class=HTMLResponse)
+async def admin_login_form(request: Request, error: str = "", next: str = "/admin/interventions"):
     return templates.TemplateResponse("login.html", {"request": request, "error": error, "next": next})
 
 
-@app.post("/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/")):
+@admin_router.post("/login", response_class=HTMLResponse)
+async def admin_login(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/admin/interventions")):
     user = authenticate_user(username, password)
     if not user:
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "next": next})
     token = create_access_token({"sub": user["username"], "role": user["role"]})
-    resp = RedirectResponse(url=next or "/", status_code=303)
+    redirect_target = "/admin/interventions"
+    if next and next != "/":
+        redirect_target = next
+    resp = RedirectResponse(url=redirect_target, status_code=303)
     resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=480*60)
     return resp
 
