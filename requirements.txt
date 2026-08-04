@@ -7,6 +7,6 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 sqlalchemy==2.0.51
 gunicorn==26.0.0
-bcrypt<5
+bcrypt<4
 psycopg2-binary>=2.9
 beautifulsoup4>=4.12
