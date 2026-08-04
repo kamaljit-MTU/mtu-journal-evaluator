@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 import json
 import io
+import os
 
 from src.config import settings
 from src.models import JournalInput
@@ -249,7 +250,7 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
-    chat_id = settings.TELEGRAM_CHAT_ID or reviewer_email or settings.COMMITTEE_EMAIL
+    chat_id = os.getenv("TELEGRAM_CHAT_ID") or reviewer_email or settings.COMMITTEE_EMAIL
     print(f"[INTERVENTION] Using chat_id={chat_id} for notification")
     try:
         sent = TelegramNotifier.send_intervention_notification(
@@ -278,7 +279,7 @@ async def submit_unverified_parameter(
 ):
     print(f"[INTERVENTION] Received unverified parameter submission for journal={journal_name}, param={parameter_name}, value={parameter_value}, email={reviewer_email}")
     description = issue_description or f"User provided value for unverified parameter: {parameter_name}"
-    chat_id = settings.TELEGRAM_CHAT_ID or reviewer_email or settings.COMMITTEE_EMAIL
+    chat_id = os.getenv("TELEGRAM_CHAT_ID") or reviewer_email or settings.COMMITTEE_EMAIL
     print(f"[INTERVENTION] Using chat_id={chat_id} for notification")
     intervention_queue.create_intervention(
         journal_name=journal_name,
