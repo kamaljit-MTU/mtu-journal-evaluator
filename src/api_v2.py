@@ -156,16 +156,29 @@ async def admin_login_form(request: Request, error: str = "", next: str = "/admi
 
 @app.post("/login", response_class=HTMLResponse)
 async def admin_login(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/admin/interventions")):
-    user = authenticate_user(username, password)
-    if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "next": next})
-    token = create_access_token({"sub": user["username"], "role": user["role"]})
-    redirect_target = "/admin/interventions"
-    if next and next != "/":
-        redirect_target = next
-    resp = RedirectResponse(url=redirect_target, status_code=303)
-    resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=480*60)
-    return resp
+    try:
+        print(f"[LOGIN] Attempting login for user={username}, next={next}")
+        user = authenticate_user(username, password)
+        print(f"[LOGIN] authenticate_user returned: {user is not None}")
+        if not user:
+            print("[LOGIN] Authentication failed - invalid credentials")
+            return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials", "next": next})
+        print(f"[LOGIN] Authentication successful for user={user.get('username')}")
+        token = create_access_token({"sub": user["username"], "role": user["role"]})
+        print(f"[LOGIN] Token created successfully")
+        redirect_target = "/admin/interventions"
+        if next and next != "/":
+            redirect_target = next
+        print(f"[LOGIN] Redirecting to {redirect_target}")
+        resp = RedirectResponse(url=redirect_target, status_code=303)
+        resp.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=480*60)
+        print(f"[LOGIN] Response created with cookie and redirect")
+        return resp
+    except Exception as e:
+        print(f"[LOGIN] Exception during login: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return templates.TemplateResponse("login.html", {"request": request, "error": f"Login error: {str(e)}", "next": next})
 
 
 @app.get("/logout")
