@@ -20,6 +20,8 @@ from src.auth import get_current_user, require_admin, authenticate_user, create_
 from src.admin_api import admin_router
 from src.batch_import import BatchImporter
 from src.human_intervention import HumanInterventionQueue
+from src.accepted_journals_db import AcceptedJournalDatabase
+from src.rejected_journals_db import RejectedJournalDatabase
 
 app = FastAPI(title="MTU Journal Evaluator")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -27,6 +29,8 @@ db = EvaluationDatabase()
 evaluator = MTUJournalEvaluator()
 aggregator = BlacklistAggregator()
 intervention_queue = HumanInterventionQueue()
+accepted_db = AcceptedJournalDatabase()
+rejected_db = RejectedJournalDatabase()
 
 app.include_router(admin_router)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "static")), name="static")
@@ -167,13 +171,13 @@ async def logout():
 
 @app.get("/accepted", response_class=HTMLResponse)
 async def public_accepted(request: Request):
-    items = db.get_accepted(limit=200)
+    items = accepted_db.list_accepted(limit=200)
     return templates.TemplateResponse("admin/accepted.html", {"request": request, "items": items, "user": None})
 
 
 @app.get("/rejected", response_class=HTMLResponse)
 async def public_rejected(request: Request):
-    items = db.get_rejected(limit=200)
+    items = rejected_db.list_rejected(limit=200)
     return templates.TemplateResponse("admin/rejected.html", {"request": request, "items": items, "user": None})
 
 
@@ -241,4 +245,4 @@ async def public_request_manual_review(
         committee_member_email=reviewer_email,
         auto_verification_failure_reason="Public manual review request"
     )
-    return RedirectResponse(url="/admin/interventions", status_code=303)
+    return RedirectResponse(url="/?review=submitted", status_code=303)

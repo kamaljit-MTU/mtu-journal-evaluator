@@ -23,7 +23,7 @@
         <p><strong>Evaluation ID:</strong> #{{ eval_id }}</p>
 
         <div class="section">
-            <h2>Status: <span class="{{ result.status.lower() }}">{{ result.status }}</span></h2>
+            <h2>Status: <span class="{{ result.status.value.lower() }}">{{ result.status.value }}</span></h2>
             <p>Score: <strong>{{ result.total_score }}/{{ result.max_score }} ({{ result.percentage }}%)</strong></p>
             <p>Threshold: {{ result.threshold }}/{{ result.max_score }}</p>
         </div>
