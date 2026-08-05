@@ -78,6 +78,45 @@
         </div>
         {% endif %}
 
+        {% if result.raw_data.verification_data and result.raw_data.verification_data.firecrawl %}
+        <div class="section">
+            <h3>FIRECRAWL VERIFICATION</h3>
+            {% set fc = result.raw_data.verification_data.firecrawl %}
+            {% if fc.error %}
+                <p class="fail"><strong>Error:</strong> {{ fc.error }}</p>
+            {% else %}
+                {% set eic = fc.eic_orcid %}
+                {% if eic %}
+                    <p><strong>Editor-in-Chief</strong></p>
+                    <p>Source: {{ eic.source_url }}</p>
+                    <p>Name found: {{ 'Yes' if eic.found else 'No' }}</p>
+                    {% if eic.editor_name %}
+                        <p>Name: {{ eic.editor_name }}</p>
+                    {% endif %}
+                    <p>ORCID found: {{ 'Yes' if eic.orcid_id else 'No' }}</p>
+                    {% if eic.orcid_id %}
+                        <p>ORCID ID: {{ eic.orcid_id }}</p>
+                    {% endif %}
+                    <p>ORCID verified: {{ 'Yes' if eic.orcid_verified else 'No' }}</p>
+                {% endif %}
+                {% set dois = fc.dois %}
+                {% if dois %}
+                    <p><strong>DOI Attribution</strong></p>
+                    <p>Source: {{ dois.source_url }}</p>
+                    <p>DOIs found: {{ dois.count }}</p>
+                    {% if dois.dois_found %}
+                        <ul>
+                        {% for d in dois.dois_found[:10] %}
+                            <li>{{ d }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% endif %}
+                    <p>Valid format: {{ 'Yes' if dois.valid_format else 'No' }}</p>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if blacklist %}
         <div class="section">
             <h3>Blacklist Check</h3>
