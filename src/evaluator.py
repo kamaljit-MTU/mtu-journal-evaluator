@@ -238,10 +238,13 @@ class MTUJournalEvaluator:
                 page_url,
                 doi_prefix=journal.doi_prefix or None,
             )
-            verification_data["firecrawl"] = {
+            firecrawl_payload = {
                 "eic_orcid": eic_orcid,
                 "dois": dois,
             }
+            if eic_orcid.get("error") or dois.get("error"):
+                firecrawl_payload["error"] = eic_orcid.get("error") or dois.get("error")
+            verification_data["firecrawl"] = firecrawl_payload
 
         return verification_data
 

@@ -78,11 +78,17 @@ class RejectionTriggerChecker:
         has_url = bool(self.journal.publisher_url and self.journal.publisher_url.strip())
         has_address = bool(self.journal.publisher_address and self.journal.publisher_address.strip())
 
-        if not has_name or not has_url:
+        if not has_name:
             return RejectionTriggerResult(
                 "Anonymous or unverifiable publisher",
                 False,
-                f"Publisher details incomplete: name={has_name}, url={has_url}"
+                "Publisher name missing"
+            )
+        if not has_url and not has_address:
+            return RejectionTriggerResult(
+                "Anonymous or unverifiable publisher",
+                False,
+                "Publisher URL and address both missing"
             )
         if not has_address:
             return RejectionTriggerResult(
