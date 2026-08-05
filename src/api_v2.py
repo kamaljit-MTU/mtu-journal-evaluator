@@ -120,6 +120,7 @@ async def evaluate_journal(
         "crawl_data": {},
         "eval_id": eval_id,
         "user": user,
+        "evaluated_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
 
