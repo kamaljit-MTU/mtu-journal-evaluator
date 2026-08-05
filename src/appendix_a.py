@@ -149,11 +149,19 @@ class AppendixAChecker:
 
     def _orcid_availability_check(self) -> Tuple[bool, str]:
         editors = self._get("editors", [])
-        if not editors:
-            return False, "Otherwise = 0"
-        with_orcid = sum(1 for e in editors if e.get("orcid"))
-        rate = with_orcid / len(editors)
-        return rate >= 0.5, f"{'≥50%' if rate >= 0.5 else 'Otherwise'} = {'3' if rate >= 0.5 else '0'}"
+        if editors:
+            with_orcid = sum(1 for e in editors if e.get("orcid"))
+            rate = with_orcid / len(editors)
+            if rate >= 0.5:
+                return True, f"≥50% = 3"
+
+        # Fallback: accept Firecrawl-discovered EIC ORCID as valid evidence
+        firecrawl = self._get("verification_data", {}).get("firecrawl") or {}
+        eic_orcid = firecrawl.get("eic_orcid") or {}
+        if eic_orcid.get("orcid_id"):
+            return True, f"EIC ORCID available = 3"
+
+        return False, "Otherwise = 0"
 
     def _special_issue_editors_check(self) -> Tuple[bool, str]:
         url = self._get("editorial_board_url", "")

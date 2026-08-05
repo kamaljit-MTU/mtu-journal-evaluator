@@ -100,10 +100,28 @@ class ScoringEngine:
                     "detail": "Address provided" if trans else "No address"})
 
         # DOI Verification (4 pts)
-        has_doi = bool(self.journal.doi_prefix)
-        pts += 4 if has_doi else 0
-        sub.append({"criterion": "DOI Verification", "earned": 4 if has_doi else 0, "max": 4,
-                    "detail": "DOI prefix provided" if has_doi else "No DOI info"})
+        doi_pts = 0
+        doi_detail = "No DOI info"
+        if self.journal.doi_prefix:
+            firecrawl_data = self.verification_data.get("firecrawl") or {}
+            dois = firecrawl_data.get("dois") or {}
+            if dois.get("error"):
+                doi_pts = 2
+                doi_detail = "DOI prefix provided, but live DOI verification failed"
+            elif dois.get("valid_format") and dois.get("count", 0) > 0:
+                doi_pts = 4
+                doi_detail = f"Valid DOI prefix with {dois.get('count')} DOI attribution(s) found on journal page"
+            elif dois.get("valid_format"):
+                doi_pts = 3
+                doi_detail = "DOI prefix provided; page contains valid DOI format but none explicitly extracted"
+            else:
+                doi_pts = 2
+                doi_detail = "DOI prefix provided, but DOI attributions on page appear invalid"
+        else:
+            doi_detail = "No DOI prefix provided"
+        pts += doi_pts
+        sub.append({"criterion": "DOI Verification", "earned": doi_pts, "max": 4,
+                    "detail": doi_detail})
 
         # Reputed Publisher (3 pts)
         # Auto-award if known reputable; otherwise 1 pt as unknown
@@ -185,6 +203,16 @@ class ScoringEngine:
                 else:
                     orcid_pts = 1
                     orcid_detail = f"Poor ORCID verification: only {verified}/{total} editors verified ({verification_rate*100:.0f}%)"
+
+        # Boost with Firecrawl EIC ORCID if scraper missed it
+        firecrawl_data = self.verification_data.get("firecrawl") or {}
+        eic_orcid = firecrawl_data.get("eic_orcid") or {}
+        if eic_orcid.get("orcid_id") and eic_orcid.get("orcid_verified"):
+            orcid_pts = 3
+            orcid_detail = f"EIC ORCID verified via Firecrawl: {eic_orcid.get('editor_name')} ({eic_orcid.get('orcid_id')})"
+        elif eic_orcid.get("orcid_id"):
+            orcid_pts = 2
+            orcid_detail = f"EIC ORCID found via Firecrawl: {eic_orcid.get('orcid_id')} (not independently verified)"
 
         pts += orcid_pts
         sub.append({"criterion": "ORCID/ID Availability", "earned": orcid_pts, "max": 3,
