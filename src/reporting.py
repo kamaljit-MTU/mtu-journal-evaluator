@@ -89,21 +89,6 @@ class ReportGenerator:
                     lines.append(f"    Error:             {dois['error']}")
                 lines.append("")
 
-        # Appendix A checks
-        if getattr(result, "appendix_checks", None):
-            passed_count = sum(1 for c in result.appendix_checks if c.get("passed"))
-            total_count = len(result.appendix_checks)
-            lines.append("-" * 70)
-            lines.append("APPENDIX A CHECKS")
-            lines.append("-" * 70)
-            lines.append(f"  Passed: {passed_count}/{total_count}")
-            for c in result.appendix_checks:
-                status = "PASS" if c.get("passed") else "FAIL"
-                lines.append(f"  [{status}] {c.get('label')}: {c.get('selected_indicator')}")
-                if c.get("verifiable_sources"):
-                    lines.append(f"           Source: {c['verifiable_sources']}")
-            lines.append("")
-
         # Summary
         lines.append("-" * 70)
         lines.append("SUMMARY")
