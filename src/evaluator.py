@@ -238,9 +238,28 @@ class MTUJournalEvaluator:
                 page_url,
                 doi_prefix=journal.doi_prefix or None,
             )
+            homepage_signal = firecrawl.verify_page_signal(page_url, kind="journal_homepage")
+
+            editorial_board_signal = {}
+            if journal.editorial_board_url:
+                editorial_board_signal = firecrawl.verify_page_signal(journal.editorial_board_url, kind="editorial_board")
+
+            policies_signal = {}
+            policies_url = journal.aims_scope_url or journal.ethics_policy_url
+            if policies_url:
+                policies_signal = firecrawl.verify_page_signal(policies_url, kind="policies")
+
+            submission_signal = {}
+            if journal.submission_portal_url:
+                submission_signal = firecrawl.verify_page_signal(journal.submission_portal_url, kind="submission_portal")
+
             firecrawl_payload = {
                 "eic_orcid": eic_orcid,
                 "dois": dois,
+                "homepage_signal": homepage_signal,
+                "editorial_board_signal": editorial_board_signal,
+                "policies_signal": policies_signal,
+                "submission_signal": submission_signal,
             }
             if eic_orcid.get("error") or dois.get("error"):
                 firecrawl_payload["error"] = eic_orcid.get("error") or dois.get("error")
