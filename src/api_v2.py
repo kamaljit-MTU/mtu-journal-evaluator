@@ -13,6 +13,7 @@ import os
 import secrets
 import datetime
 import logging
+from types import SimpleNamespace
 
 from src.config import settings
 from src.models import JournalInput
@@ -63,6 +64,12 @@ def _run_evaluation_job(job_id: str, journal: JournalInput, save_accepted: bool)
     try:
         result = evaluator.evaluate(journal, save_accepted=save_accepted)
         _jobs[job_id]["status"] = "done"
+        _jobs[job_id]["raw_result"] = result
+        _jobs[job_id]["report_text"] = evaluator.reporter.generate_text_report(result)
+        _jobs[job_id]["eval_id"] = db.save_evaluation(
+            json.loads(evaluator.reporter.generate_json_report(result)),
+            evaluated_by="web_form",
+        )
         _jobs[job_id]["result"] = {
             "status": result.status.value,
             "total_score": result.total_score,
@@ -179,9 +186,24 @@ async def evaluation_result_page(request: Request, job_id: str, user: Optional[d
         raise HTTPException(status_code=404, detail="Unknown evaluation job")
     if job.get("status") != "done":
         return RedirectResponse(url=f"/?status=pending&job={job_id}", status_code=303)
-    result = job.get("result") or {}
+    raw = job.get("raw_result")
+    report_text = job.get("report_text") or ""
     eval_id = job.get("eval_id") or 0
-    report_text = result.get("report_text") or ""
+    if raw is None:
+        raise HTTPException(status_code=500, detail="Evaluation result missing")
+    result = SimpleNamespace(
+        status=SimpleNamespace(value=raw.status.value),
+        total_score=raw.total_score,
+        max_score=raw.max_score,
+        percentage=raw.percentage,
+        threshold=raw.threshold,
+        summary=raw.summary,
+        journal_name=raw.journal_name,
+        journal_url=raw.journal_url,
+        rejection_triggers=raw.rejection_triggers,
+        unverified_parameters=getattr(raw, "unverified_parameters", []),
+        raw_data=getattr(raw, "raw_data", {}),
+    )
     return templates.TemplateResponse("report.html", {
         "request": request,
         "result": result,
