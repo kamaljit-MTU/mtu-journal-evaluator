@@ -1,15 +1,18 @@
 """
 FastAPI web interface for MTU Journal Evaluator - v2 with auth and admin routes.
 """
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 import json
 import io
 import os
+import secrets
+import datetime
+import logging
 
 from src.config import settings
 from src.models import JournalInput
@@ -38,6 +41,53 @@ rejected_db = RejectedJournalDatabase()
 app.include_router(admin_router)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent.parent / "static")), name="static")
 
+_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def _estimate_search_time(journal: JournalInput) -> str:
+    base = 10
+    extra = 0
+    urls = [journal.url, journal.editorial_board_url, journal.aims_scope_url, journal.submission_portal_url, journal.ethics_policy_url]
+    extra += sum(10 for u in urls if u)
+    if journal.issn_print or journal.issn_online:
+        extra += 10
+    if journal.claimed_indexes:
+        extra += min(20, len(journal.claimed_indexes) * 3)
+    total = min(90, max(20, base + extra))
+    return f"{total}–{total + 20} seconds"
+
+
+def _run_evaluation_job(job_id: str, journal: JournalInput, save_accepted: bool):
+    _jobs[job_id]["status"] = "running"
+    _jobs[job_id]["started_at"] = datetime.datetime.now().isoformat()
+    try:
+        result = evaluator.evaluate(journal, save_accepted=save_accepted)
+        _jobs[job_id]["status"] = "done"
+        _jobs[job_id]["result"] = {
+            "status": result.status.value,
+            "total_score": result.total_score,
+            "max_score": result.max_score,
+            "percentage": result.percentage,
+            "threshold": result.threshold,
+            "summary": result.summary,
+            "journal_name": result.journal_name,
+            "journal_url": result.journal_url,
+            "rejection_triggers": [
+                {
+                    "name": t.name,
+                    "passed": t.passed,
+                    "detail": t.detail,
+                }
+                for t in result.rejection_triggers
+            ],
+        }
+    except Exception as e:
+        logging.getLogger(__name__).exception("evaluation job failed: %s", job_id)
+        _jobs[job_id]["status"] = "error"
+        _jobs[job_id]["error"] = str(e)
+    finally:
+        _jobs[job_id]["finished_at"] = datetime.datetime.now().isoformat()
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: Optional[dict] = Depends(get_current_user)):
@@ -47,6 +97,7 @@ async def index(request: Request, user: Optional[dict] = Depends(get_current_use
 @app.post("/evaluate")
 async def evaluate_journal(
     request: Request,
+    background_tasks: BackgroundTasks,
     name: str = Form(...),
     url: str = Form(...),
     issn_print: Optional[str] = Form(None),
@@ -56,6 +107,7 @@ async def evaluate_journal(
     publisher_url: Optional[str] = Form(None),
     publisher_address: Optional[str] = Form(None),
     editorial_board_url: Optional[str] = Form(None),
+    aims_scope_url: Optional[str] = Form(None),
     submission_portal_url: Optional[str] = Form(None),
     ethics_policy_url: Optional[str] = Form(None),
     open_access: bool = Form(False),
@@ -77,6 +129,7 @@ async def evaluate_journal(
         publisher_url=publisher_url,
         publisher_address=publisher_address,
         editorial_board_url=editorial_board_url,
+        aims_scope_url=aims_scope_url,
         submission_portal_url=submission_portal_url,
         ethics_policy_url=ethics_policy_url,
         open_access=open_access,
@@ -86,41 +139,59 @@ async def evaluate_journal(
         rapid_publication_claim=rapid_publication_claim,
         lock_pdfs=lock_pdfs,
     )
-
-    result = evaluator.evaluate(journal, save_accepted=save_accepted)
-    report_text = evaluator.reporter.generate_text_report(result)
-    report_json = evaluator.reporter.generate_json_report(result)
-    result_dict = json.loads(report_json)
-
-    verifier_results = {
-        "issn": ISSNVerifier.verify(journal.issn_print) if journal.issn_print else None,
-        "doi": DOIVerifier.verify(journal.doi_prefix) if journal.doi_prefix else None,
-        "publisher": PublisherVerifier.verify(
-            journal.publisher_name, journal.publisher_url, journal.publisher_address
-        ),
-        "editorial_board": EditorialBoardVerifier.verify(journal.editorial_board_url),
+    estimated = _estimate_search_time(journal)
+    job_id = secrets.token_hex(16)
+    _jobs[job_id] = {
+        "id": job_id,
+        "status": "queued",
+        "created_at": datetime.datetime.now().isoformat(),
+        "journal_name": journal.name,
     }
-    blacklist = BlacklistChecker.check(journal.name, journal.claimed_indexes, journal.metric_claims)
+    background_tasks.add_task(_run_evaluation_job, job_id, journal, save_accepted)
+    return templates.TemplateResponse("progress.html", {
+        "request": request,
+        "user": user,
+        "job_id": job_id,
+        "estimated": estimated,
+        "journal_name": journal.name,
+    })
 
-    # Also check live blacklist feeds
-    live_blacklists = aggregator.is_blacklisted(journal.name)
-    if live_blacklists["blacklisted"]:
-        blacklist["blacklisted"] = True
-        blacklist["issues"].extend(
-            [f"Found in blacklist feed: {m}" for m in live_blacklists["matches"]]
-        )
 
-    eval_id = db.save_evaluation(result_dict, evaluated_by="web_form")
+@app.get("/evaluation-status/{job_id}")
+async def evaluation_status(job_id: str):
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown evaluation job")
+    return JSONResponse({
+        "status": job.get("status"),
+        "estimated": job.get("estimated"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+        "error": job.get("error"),
+        "result": job.get("result"),
+    })
+
+
+@app.get("/evaluation-result/{job_id}")
+async def evaluation_result_page(request: Request, job_id: str, user: Optional[dict] = Depends(get_current_user)):
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown evaluation job")
+    if job.get("status") != "done":
+        return RedirectResponse(url=f"/?status=pending&job={job_id}", status_code=303)
+    result = job.get("result") or {}
+    eval_id = job.get("eval_id") or 0
+    report_text = result.get("report_text") or ""
     return templates.TemplateResponse("report.html", {
         "request": request,
         "result": result,
         "report_text": report_text,
-        "verifier_results": verifier_results,
-        "blacklist": blacklist,
+        "verifier_results": {},
+        "blacklist": {},
         "crawl_data": {},
         "eval_id": eval_id,
         "user": user,
-        "evaluated_at": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "evaluated_at": job.get("finished_at", ""),
     })
 
 

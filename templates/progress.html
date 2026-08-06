@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Evaluating... - MTU Journal Evaluator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 2em auto; background: #f5f5f5; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .status-box { background: #f8f9fa; padding: 1em; border-radius: 6px; border-left: 4px solid #1a5276; margin: 1em 0; }
+        .meta { color: #555; font-size: 0.95em; }
+        .progress-bar { width: 100%; background: #eef2f7; border-radius: 4px; height: 14px; overflow: hidden; margin: 1em 0; }
+        .progress-fill { height: 100%; width: 0%; background: #1a5276; transition: width .3s ease; }
+        a { color: #1a5276; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Evaluation in Progress</h1>
+        <p class="meta">Journal: <strong>{{ journal_name }}</strong></p>
+        <div class="status-box">
+            <p>This page will update automatically while the search runs.</p>
+            <p class="meta">Estimated search time: <strong>{{ estimated }}</strong>.</p>
+            <p class="meta">If you do not see a result soon, wait a bit or refresh this page.</p>
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+            <p id="statusText" class="meta">Status: starting...</p>
+        </div>
+        <p><a href="/">Evaluate another journal</a></p>
+    </div>
+    <script>
+        (function(){
+            const jobId = "{{ job_id }}";
+            const statusText = document.getElementById("statusText");
+            const progressFill = document.getElementById("progressFill");
+            const phases = ["queued", "running", "done", "error"];
+            const phaseIndex = (s) => { const i = phases.indexOf(s); return i < 0 ? 0 : i; };
+            function update(){
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "/evaluation-status/" + encodeURIComponent(jobId), true);
+                xhr.onreadystatechange = function(){
+                    if (xhr.readyState !== 4) return;
+                    if (xhr.status === 200){
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            const idx = phaseIndex(data.status);
+                            progressFill.style.width = (idx / (phases.length - 1) * 100) + "%";
+                            statusText.textContent = "Status: " + (data.status || "unknown");
+                            if (data.status === "done"){
+                                progressFill.style.width = "100%";
+                                window.location.replace("/evaluation-result/" + encodeURIComponent(jobId));
+                            } else if (data.status === "error"){
+                                statusText.textContent += " — error: " + (data.error || "unknown");
+                            }
+                        } catch(e) {
+                            statusText.textContent = "Status: parsing response failed";
+                        }
+                    } else {
+                        statusText.textContent = "Status: unreachable";
+                    }
+                };
+                xhr.send();
+            }
+            update();
+            setInterval(update, 2000);
+        })();
+    </script>
+</body>
+</html>
