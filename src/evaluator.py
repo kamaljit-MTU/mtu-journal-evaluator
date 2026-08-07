@@ -17,6 +17,7 @@ from .human_intervention import HumanInterventionQueue
 from .reference_lists import ReferenceListChecker
 from .appendix_a import AppendixAChecker
 from .firecrawl_verifier import FirecrawlVerifier
+from .verifiers import ISSNVerifier
 
 
 class MTUJournalEvaluator:
@@ -264,6 +265,14 @@ class MTUJournalEvaluator:
             if eic_orcid.get("error") or dois.get("error"):
                 firecrawl_payload["error"] = eic_orcid.get("error") or dois.get("error")
             verification_data["firecrawl"] = firecrawl_payload
+
+        # 6. ISSN Portal search fallback when no ISSN provided or additional confirmation needed
+        issn_search = {}
+        if not journal.issn_print and not journal.issn_online and journal.name:
+            issn_search = ISSNVerifier.search_portal(journal.name)
+        elif journal.name:
+            issn_search = ISSNVerifier.search_portal(journal.name)
+        verification_data["issn_portal_search"] = issn_search
 
         return verification_data
 

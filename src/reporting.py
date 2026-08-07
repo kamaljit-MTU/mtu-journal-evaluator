@@ -54,41 +54,6 @@ class ReportGenerator:
                     lines.append(f"    • {sc['criterion']}: {sc['earned']}/{sc['max']} — {sc['detail']}")
             lines.append("")
 
-        # Firecrawl verification results
-        firecrawl_data = (getattr(result, "raw_data", {}) or {}).get("verification_data", {}).get("firecrawl")
-        if firecrawl_data:
-            lines.append("-" * 70)
-            lines.append("FIRECRAWL VERIFICATION")
-            lines.append("-" * 70)
-
-            eic = firecrawl_data.get("eic_orcid") or {}
-            if eic:
-                lines.append("  Editor-in-Chief")
-                lines.append(f"    Source:         {eic.get('source_url')}")
-                lines.append(f"    Name found:     {'Yes' if eic.get('found') else 'No'}")
-                if eic.get("editor_name"):
-                    lines.append(f"    Name:           {eic['editor_name']}")
-                lines.append(f"    ORCID found:    {'Yes' if eic.get('orcid_id') else 'No'}")
-                if eic.get("orcid_id"):
-                    lines.append(f"    ORCID ID:       {eic['orcid_id']}")
-                lines.append(f"    ORCID verified: {'Yes' if eic.get('orcid_verified') else 'No'}")
-                if eic.get("error"):
-                    lines.append(f"    Error:          {eic['error']}")
-                lines.append("")
-
-            dois = firecrawl_data.get("dois") or {}
-            if dois is not None:
-                lines.append("  DOI Attribution")
-                lines.append(f"    Source:            {dois.get('source_url')}")
-                lines.append(f"    DOIs found:        {dois.get('count', 0)}")
-                if dois.get("dois_found"):
-                    for d in dois["dois_found"][:10]:
-                        lines.append(f"      - {d}")
-                lines.append(f"    Valid format:      {'Yes' if dois.get('valid_format') else 'No'}")
-                if dois.get("error"):
-                    lines.append(f"    Error:             {dois['error']}")
-                lines.append("")
-
         # Summary
         lines.append("-" * 70)
         lines.append("SUMMARY")

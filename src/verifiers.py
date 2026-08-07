@@ -3,6 +3,7 @@ Live Data Verifiers - external lookups for ISSN, DOI, publisher, and editorial d
 """
 from typing import Optional
 import re
+from urllib.parse import quote
 
 
 class ISSNVerifier:
@@ -35,8 +36,49 @@ class ISSNVerifier:
             "format_valid": fmt_ok,
             "check_digit_valid": check_ok,
             "portal_url": f"{ISSNVerifier.ISSN_PORTAL_URL}{issn}",
-            "status": "valid" if (fmt_ok and check_ok) else "invalid"
+            "status": "valid" if (fmt_ok and check_ok) else "invalid",
         }
+
+    @staticmethod
+    def search_portal(journal_name: str) -> dict:
+        """Best-effort search for an ISSN using Firecrawl scraping of the ISSN portal search page."""
+        try:
+            from src.firecrawl_verifier import FirecrawlVerifier
+            fc = FirecrawlVerifier()
+            search_url = f"{ISSNVerifier.ISSN_PORTAL_URL}?search={quote(journal_name)}"
+            scrape = fc.scrape(search_url, timeout=45)
+            if scrape.get("error"):
+                return {
+                    "searched_name": journal_name,
+                    "found": False,
+                    "issn": None,
+                    "source_url": search_url,
+                    "error": scrape["error"],
+                }
+            markdown = scrape.get("markdown", "") or ""
+            matches = re.findall(r"\b\d{4}-\d{3}[\dX]\b", markdown, re.IGNORECASE)
+            seen = []
+            for m in matches:
+                candidate = m.upper()
+                if candidate not in seen:
+                    seen.append(candidate)
+            found = len(seen) > 0
+            return {
+                "searched_name": journal_name,
+                "found": found,
+                "issn": seen[0] if found else None,
+                "all_matches": seen[:5],
+                "source_url": search_url,
+                "error": None,
+            }
+        except Exception as e:
+            return {
+                "searched_name": journal_name,
+                "found": False,
+                "issn": None,
+                "source_url": None,
+                "error": str(e),
+            }
 
 
 class DOIVerifier:

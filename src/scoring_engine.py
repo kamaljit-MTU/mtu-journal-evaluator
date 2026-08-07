@@ -41,9 +41,17 @@ class ScoringEngine:
         pts = 0
 
         issn = self.journal.issn_print or self.journal.issn_online
+        issn_search = self.verification_data.get("issn_portal_search") or {}
+        if not issn and issn_search.get("issn"):
+            issn = issn_search["issn"]
         pts += 5 if issn else 0
+        detail = f"ISSN: {issn}" if issn else "No ISSN provided"
+        if not (self.journal.issn_print or self.journal.issn_online) and issn_search.get("issn"):
+            detail += f" (found via ISSN Portal search for '{issn_search.get('searched_name') or self.journal.name}')"
+        elif issn:
+            detail += " (validated)"
         sub.append({"criterion": "ISSN Verification", "earned": 5 if issn else 0, "max": 5,
-                    "detail": f"ISSN: {issn}" if issn else "No ISSN provided"})
+                    "detail": detail})
 
         suspicious = {"international journal of advanced research", "world journal of", "american journal of"}
         title_ok = not any(p in self.journal.name.lower() for p in suspicious)
