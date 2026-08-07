@@ -18,6 +18,7 @@ from .reference_lists import ReferenceListChecker
 from .appendix_a import AppendixAChecker
 from .firecrawl_verifier import FirecrawlVerifier
 from .verifiers import ISSNVerifier
+from .indexing_api_checker import IndexingAPIChecker
 
 
 class MTUJournalEvaluator:
@@ -273,6 +274,12 @@ class MTUJournalEvaluator:
         elif journal.name:
             issn_search = ISSNVerifier.search_portal(journal.name)
         verification_data["issn_portal_search"] = issn_search
+
+        # 7. Indexing API checks: DOAJ/ERIC free, Scopus/IEEE public checks
+        indexing_api = {}
+        if journal.name:
+            indexing_api = IndexingAPIChecker.check_all(journal.name, journal.issn_print or journal.issn_online)
+        verification_data["indexing_api"] = indexing_api
 
         return verification_data
 

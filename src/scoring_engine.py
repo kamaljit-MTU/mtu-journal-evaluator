@@ -501,14 +501,22 @@ class ScoringEngine:
         pts = 0
 
         major = {"scopus", "web of science", "wos", "doaj", "eric",
-                 "psycinfo", "heinonline", "lexisnexis"}
+                 "psycinfo", "heinonline", "lexisnexis", "ieee xplore", "ieee"}
         homepage_indexing = [c.lower() for c in self.homepage.get("indexing_claims", [])]
+        api_indexing = [c.lower() for c in (self.verification_data.get("indexing_api") or {}).get("indexing_claims", [])]
         claimed = {c.lower() for c in self.journal.claimed_indexes}
-        combined_indexing = claimed | set(homepage_indexing)
+        combined_indexing = claimed | set(homepage_indexing) | set(api_indexing)
         has_major = bool(combined_indexing & major)
         pts += 6 if has_major else 0
+        detail_parts = []
+        if claimed & major:
+            detail_parts.append(f"claimed={claimed & major}")
+        if set(homepage_indexing) & major:
+            detail_parts.append(f"homepage={set(homepage_indexing) & major}")
+        if set(api_indexing) & major:
+            detail_parts.append(f"api={set(api_indexing) & major}")
         sub.append({"criterion": "Indexing in Major Databases", "earned": 6 if has_major else 0, "max": 6,
-                    "detail": f"Major indexes found: {combined_indexing & major}" if has_major else "No major indexes"})
+                    "detail": "; ".join(detail_parts) if has_major else "No major indexes"})
 
         bad_metrics = {"sjif", "cosmos", "gif", "citefactor", "ae global index"}
         homepage_metrics = [m.lower() for m in self.homepage.get("metric_claims", [])]
