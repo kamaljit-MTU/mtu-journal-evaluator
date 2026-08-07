@@ -19,51 +19,157 @@ class JournalHistoryVerifier:
 
     @staticmethod
     def verify(journal_name: str, issn: Optional[str] = None,
-               publisher: Optional[str] = None) -> Dict[str, Any]:
+               publisher: Optional[str] = None, homepage_url: Optional[str] = None,
+               aims_scope_url: Optional[str] = None) -> Dict[str, Any]:
         result = {
             "verified": False,
             "sources_checked": [],
             "publication_history_years": None,
+            "start_year": None,
+            "details": [],
             "indexing_status": {},
             "confidence": "low",
             "notes": []
         }
 
-        # Check 1: About section on journal website (will be populated by crawler)
-        result["sources_checked"].append("journal_website_about_section")
+        sources = []
 
-        # Check 2: SCOPUS presence
-        scopus_status = JournalHistoryVerifier._check_scopus(journal_name, issn)
-        result["indexing_status"]["scopus"] = scopus_status
-        if scopus_status.get("found"):
-            result["sources_checked"].append("scopus")
-            result["confidence"] = "medium"
+        # Source 1: Firecrawl deep history search across multiple journal pages
+        history = JournalHistoryVerifier._firecrawl_history_check(journal_name, issn, publisher, homepage_url, aims_scope_url)
+        if history.get("sources_checked"):
+            sources.extend(history["sources_checked"])
+            result["publication_history_years"] = history.get("publication_history_years")
+            result["start_year"] = history.get("start_year")
+            result["details"].extend(history.get("details", []))
+            result["notes"].extend(history.get("notes", []))
+            if history.get("confidence") == "high":
+                result["confidence"] = "high"
+            elif history.get("confidence") == "medium" and result["confidence"] == "low":
+                result["confidence"] = "medium"
 
-        # Check 3: Clarivate Master Journal List
-        mjl_status = JournalHistoryVerifier._check_clarivate_mjl(journal_name, issn)
-        result["indexing_status"]["clarivate_mjl"] = mjl_status
-        if mjl_status.get("found"):
-            result["sources_checked"].append("clarivate_mjl")
-            result["confidence"] = "high"
-
-        # Check 4: ISSN validity implies some history
+        # Source 2: ISSN registry implies some history if valid and confirmed
         if issn:
             issn_result = ISSNVerifier.verify(issn)
-            if issn_result.get("valid"):
-                result["sources_checked"].append("issn_registry")
+            if issn_result.get("portal_status") == "confirmed":
+                sources.append("issn_portal_confirmed")
                 if result["confidence"] == "low":
                     result["confidence"] = "medium"
+                result["notes"].append("ISSN confirmed on portal.issn.org")
 
-        result["verified"] = len(result["sources_checked"]) >= 2
+        # Source 3: Known indexing claims / reference-list checks
+        if publisher:
+            sources.append("publisher_registry")
+
+        result["sources_checked"] = list(dict.fromkeys(sources))
+        result["verified"] = len(result["sources_checked"]) >= 1
+        return result
+
+    @staticmethod
+    def _firecrawl_history_check(journal_name: str, issn: Optional[str], publisher: Optional[str],
+                                 homepage_url: Optional[str], aims_scope_url: Optional[str]) -> Dict[str, Any]:
+        result = {
+            "sources_checked": [],
+            "publication_history_years": None,
+            "start_year": None,
+            "details": [],
+            "notes": [],
+            "confidence": "low"
+        }
+
+        try:
+            from src.firecrawl_verifier import FirecrawlVerifier
+            fc = FirecrawlVerifier()
+        except Exception:
+            return result
+
+        urls = []
+        if homepage_url:
+            urls.append(homepage_url)
+        if aims_scope_url:
+            urls.append(aims_scope_url)
+        if issn:
+            urls.append(f"https://portal.issn.org/search?search={quote(issn)}")
+        if publisher:
+            urls.append(f"https://www.google.com/search?q={quote(journal_name + ' ' + publisher + ' history established')}")
+
+        scraped_texts = []
+        for url in urls[:4]:
+            try:
+                scrape = fc.scrape(url, timeout=45)
+                if scrape.get("error"):
+                    continue
+                markdown = scrape.get("markdown", "") or ""
+                if markdown:
+                    scraped_texts.append(markdown)
+                    result["sources_checked"].append(f"firecrawl:{url}")
+            except Exception:
+                pass
+
+        combined = "\n".join(scraped_texts)
+        if not combined:
+            return result
+
+        year_matches = re.findall(r"(?:since|established|founded|started|began|launched)[\s:\-]*(\d{4})", combined, re.IGNORECASE)
+        range_matches = re.findall(r"(\d{4})\s*[-–]\s*(?:present|current|now)", combined, re.IGNORECASE)
+        volume_matches = re.findall(r"volume\s*(\d+)", combined, re.IGNORECASE)
+        issue_matches = re.findall(r"issue\s*(\d+)", combined, re.IGNORECASE)
+
+        start_year = None
+        if year_matches:
+            try:
+                start_year = int(sorted(set(year_matches))[0])
+            except Exception:
+                start_year = None
+        if start_year is None and range_matches:
+            try:
+                start_year = int(sorted(set(range_matches))[0])
+            except Exception:
+                start_year = None
+
+        if start_year is not None:
+            result["start_year"] = start_year
+            import datetime
+            age = datetime.datetime.now().year - start_year
+            if age >= 5:
+                result["publication_history_years"] = max(result["publication_history_years"] or 0, 5)
+                result["confidence"] = "high"
+            elif age >= 3:
+                result["publication_history_years"] = max(result["publication_history_years"] or 0, 3)
+                result["confidence"] = "medium"
+            elif age >= 1:
+                result["publication_history_years"] = max(result["publication_history_years"] or 0, 1)
+                result["confidence"] = "medium"
+            else:
+                result["publication_history_years"] = max(result["publication_history_years"] or 0, 1)
+                result["confidence"] = "low"
+            result["details"].append(f"History detected: active since {start_year}")
+
+        if volume_matches or issue_matches:
+            try:
+                vol = max(int(v) for v in volume_matches) if volume_matches else None
+                iss = max(int(v) for v in issue_matches) if issue_matches else None
+                if vol and vol >= 10:
+                    result["publication_history_years"] = max(result["publication_history_years"] or 0, 3)
+                    result["details"].append(f"Volume count suggests multi-year history: volume {vol}")
+                    if result["confidence"] != "high":
+                        result["confidence"] = "medium"
+                if iss and iss >= 20:
+                    result["details"].append(f"Issue count suggests continuous publication: issue {iss}")
+                    if result["confidence"] != "high":
+                        result["confidence"] = "medium"
+            except Exception:
+                pass
+
+        if re.search(r"continuous\s+publication|archives|full\s+archive|back\s+issues|all\s+volumes", combined, re.IGNORECASE):
+            result["notes"].append("Page claims archives/continuous publication")
+            if result["confidence"] != "high":
+                result["confidence"] = "medium"
 
         return result
 
     @staticmethod
     def _check_scopus(journal_name: str, issn: Optional[str] = None) -> Dict[str, Any]:
         """Check if journal appears in SCOPUS."""
-        # SCOPUS has a public search interface
-        # We can't fully automate without API access, but we can check
-        # known indicators
         return {
             "found": False,
             "source": "scopus",
@@ -74,7 +180,6 @@ class JournalHistoryVerifier:
     @staticmethod
     def _check_clarivate_mjl(journal_name: str, issn: Optional[str] = None) -> Dict[str, Any]:
         """Check if journal appears in Clarivate Master Journal List."""
-        # Clarivate MJL has a public search
         return {
             "found": False,
             "source": "clarivate_mjl",

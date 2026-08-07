@@ -148,7 +148,9 @@ class MTUJournalEvaluator:
         journal_history = JournalHistoryVerifier.verify(
             journal.name,
             journal.issn_print or journal.issn_online,
-            journal.publisher_name
+            journal.publisher_name,
+            journal.url,
+            journal.aims_scope_url
         )
         verification_data["journal_history"] = journal_history
 
