@@ -31,12 +31,18 @@ class ISSNVerifier:
     def verify(issn: str) -> dict:
         fmt_ok = ISSNVerifier.verify_format(issn)
         check_ok = ISSNVerifier.verify_check_digit(issn) if fmt_ok else False
+        portal_status = None
+        portal_error = None
+        if fmt_ok:
+            portal_status, portal_error = ISSNVerifier._portal_lookup(issn)
         return {
             "issn": issn,
             "format_valid": fmt_ok,
             "check_digit_valid": check_ok,
             "portal_url": f"{ISSNVerifier.ISSN_PORTAL_URL}{issn}",
-            "status": "valid" if (fmt_ok and check_ok) else "invalid",
+            "portal_status": portal_status,
+            "portal_error": portal_error,
+            "status": "valid" if (fmt_ok and check_ok and portal_status == "confirmed") else "invalid",
         }
 
     @staticmethod
@@ -45,13 +51,14 @@ class ISSNVerifier:
         try:
             from src.firecrawl_verifier import FirecrawlVerifier
             fc = FirecrawlVerifier()
-            search_url = f"{ISSNVerifier.ISSN_PORTAL_URL}?search={quote(journal_name)}"
+            search_url = f"{ISSNVerifier.ISSN_PORTAL_URL}search?search={quote(journal_name)}"
             scrape = fc.scrape(search_url, timeout=45)
             if scrape.get("error"):
                 return {
                     "searched_name": journal_name,
                     "found": False,
                     "issn": None,
+                    "confirmed": False,
                     "source_url": search_url,
                     "error": scrape["error"],
                 }
@@ -62,12 +69,14 @@ class ISSNVerifier:
                 candidate = m.upper()
                 if candidate not in seen:
                     seen.append(candidate)
+            confirmed = bool(re.search(r"Confirmed\s+record", markdown, re.IGNORECASE))
             found = len(seen) > 0
             return {
                 "searched_name": journal_name,
                 "found": found,
                 "issn": seen[0] if found else None,
                 "all_matches": seen[:5],
+                "confirmed": confirmed,
                 "source_url": search_url,
                 "error": None,
             }
@@ -76,9 +85,26 @@ class ISSNVerifier:
                 "searched_name": journal_name,
                 "found": False,
                 "issn": None,
+                "confirmed": False,
                 "source_url": None,
                 "error": str(e),
             }
+
+    @staticmethod
+    def _portal_lookup(issn: str):
+        try:
+            from src.firecrawl_verifier import FirecrawlVerifier
+            fc = FirecrawlVerifier()
+            search_url = f"{ISSNVerifier.ISSN_PORTAL_URL}search?search={quote(issn)}"
+            scrape = fc.scrape(search_url, timeout=45)
+            if scrape.get("error"):
+                return None, scrape["error"]
+            markdown = scrape.get("markdown", "") or ""
+            if re.search(r"Confirmed\s+record", markdown, re.IGNORECASE):
+                return "confirmed", None
+            return "not_confirmed", None
+        except Exception as e:
+            return None, str(e)
 
 
 class DOIVerifier:
