@@ -1,6 +1,6 @@
 """
 Indexing API Checker
-Free/limited API checks for DOAJ, ERIC, Scopus, IEEE Xplore.
+Free/limited API checks for DOAJ, ERIC.
 """
 import re
 from typing import Dict, Any, Optional, List
@@ -13,8 +13,6 @@ class IndexingAPIChecker:
             "journal_name": journal_name,
             "doaj": IndexingAPIChecker.check_doaj(journal_name, issn),
             "eric": IndexingAPIChecker.check_eric(journal_name),
-            "scopus": IndexingAPIChecker.check_scopus_free(journal_name, issn),
-            "ieee": IndexingAPIChecker.check_ieee_free(journal_name, issn),
             "indexing_claims": IndexingAPIChecker._collect_claims(
                 journal_name,
                 issn,
@@ -34,16 +32,6 @@ class IndexingAPIChecker:
                 claims.append("ERIC")
         except Exception:
             pass
-        try:
-            if IndexingAPIChecker.check_scopus_free(journal_name, issn).get("found"):
-                claims.append("Scopus")
-        except Exception:
-            pass
-        try:
-            if IndexingAPIChecker.check_ieee_free(journal_name, issn).get("found"):
-                claims.append("IEEE Xplore")
-        except Exception:
-            pass
         return claims
 
     @staticmethod
@@ -57,17 +45,35 @@ class IndexingAPIChecker:
         }
         try:
             from urllib.parse import quote
-            from src.firecrawl_verifier import FirecrawlVerifier
             q = quote(journal_name)
+            if issn:
+                q = f"issn:{issn}"
             url = f"https://doaj.org/api/search/journals/{q}"
-            fc = FirecrawlVerifier()
-            scrape = fc.scrape(url, timeout=45)
-            if scrape.get("error"):
-                result["error"] = scrape.get("error")
-                result["detail"] = f"DOAJ lookup failed: {scrape.get('error')}"
-                return result
+            fc = None
+            try:
+                from src.firecrawl_verifier import FirecrawlVerifier
+                fc = FirecrawlVerifier()
+            except Exception:
+                fc = None
 
-            markdown = scrape.get("markdown", "") or ""
+            data = None
+            if fc:
+                scrape = fc.scrape(url, timeout=45)
+                if scrape.get("error"):
+                    result["error"] = scrape.get("error")
+                    result["detail"] = f"DOAJ lookup failed: {scrape.get('error')}"
+                    return result
+                markdown = scrape.get("markdown", "") or ""
+                data = {"markdown": markdown, "source_url": url}
+            else:
+                import requests as req
+                resp = req.get(url, timeout=30)
+                if resp.status_code != 200:
+                    result["detail"] = f"DOAJ lookup failed: HTTP {resp.status_code}"
+                    return result
+                data = {"markdown": resp.text, "source_url": url}
+
+            markdown = data.get("markdown", "") or ""
             if journal_name.lower() in markdown.lower():
                 result["found"] = True
                 result["url"] = url
@@ -90,17 +96,33 @@ class IndexingAPIChecker:
         }
         try:
             from urllib.parse import quote
-            from src.firecrawl_verifier import FirecrawlVerifier
             q = quote(journal_name)
             url = f"https://api.eric.ed.gov/?search={q}&format=json"
-            fc = FirecrawlVerifier()
-            scrape = fc.scrape(url, timeout=45)
-            if scrape.get("error"):
-                result["error"] = scrape.get("error")
-                result["detail"] = f"ERIC lookup failed: {scrape.get('error')}"
-                return result
+            fc = None
+            try:
+                from src.firecrawl_verifier import FirecrawlVerifier
+                fc = FirecrawlVerifier()
+            except Exception:
+                fc = None
 
-            markdown = scrape.get("markdown", "") or ""
+            data = None
+            if fc:
+                scrape = fc.scrape(url, timeout=45)
+                if scrape.get("error"):
+                    result["error"] = scrape.get("error")
+                    result["detail"] = f"ERIC lookup failed: {scrape.get('error')}"
+                    return result
+                markdown = scrape.get("markdown", "") or ""
+                data = {"markdown": markdown, "source_url": url}
+            else:
+                import requests as req
+                resp = req.get(url, timeout=30)
+                if resp.status_code != 200:
+                    result["detail"] = f"ERIC lookup failed: HTTP {resp.status_code}"
+                    return result
+                data = {"markdown": resp.text, "source_url": url}
+
+            markdown = data.get("markdown", "") or ""
             if journal_name.lower() in markdown.lower():
                 result["found"] = True
                 result["url"] = url
@@ -110,70 +132,4 @@ class IndexingAPIChecker:
         except Exception as e:
             result["error"] = str(e)
             result["detail"] = f"ERIC check failed: {e}"
-        return result
-
-    @staticmethod
-    def check_scopus_free(journal_name: str, issn: Optional[str] = None) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "source": "scopus",
-            "found": False,
-            "url": None,
-            "error": None,
-            "detail": "Not found via public/free checks",
-        }
-        try:
-            from urllib.parse import quote
-            from src.firecrawl_verifier import FirecrawlVerifier
-            q = quote(journal_name)
-            url = f"https://www.scopus.com/sources.uri?search={q}"
-            fc = FirecrawlVerifier()
-            scrape = fc.scrape(url, timeout=45)
-            if scrape.get("error"):
-                result["error"] = scrape.get("error")
-                result["detail"] = f"Scopus lookup failed: {scrape.get('error')}"
-                return result
-
-            markdown = scrape.get("markdown", "") or ""
-            if journal_name.lower() in markdown.lower():
-                result["found"] = True
-                result["url"] = url
-                result["detail"] = "Journal appears in Scopus public search"
-            else:
-                result["detail"] = "Not found in Scopus public search"
-        except Exception as e:
-            result["error"] = str(e)
-            result["detail"] = f"Scopus check failed: {e}"
-        return result
-
-    @staticmethod
-    def check_ieee_free(journal_name: str, issn: Optional[str] = None) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "source": "ieee",
-            "found": False,
-            "url": None,
-            "error": None,
-            "detail": "Not found via public/free checks",
-        }
-        try:
-            from urllib.parse import quote
-            from src.firecrawl_verifier import FirecrawlVerifier
-            q = quote(journal_name)
-            url = f"https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={q}"
-            fc = FirecrawlVerifier()
-            scrape = fc.scrape(url, timeout=45)
-            if scrape.get("error"):
-                result["error"] = scrape.get("error")
-                result["detail"] = f"IEEE lookup failed: {scrape.get('error')}"
-                return result
-
-            markdown = scrape.get("markdown", "") or ""
-            if journal_name.lower() in markdown.lower():
-                result["found"] = True
-                result["url"] = url
-                result["detail"] = "Journal appears in IEEE Xplore public search"
-            else:
-                result["detail"] = "Not found in IEEE Xplore public search"
-        except Exception as e:
-            result["error"] = str(e)
-            result["detail"] = f"IEEE check failed: {e}"
         return result
